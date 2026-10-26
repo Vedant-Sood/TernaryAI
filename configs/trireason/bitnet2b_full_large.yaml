@@ -1,0 +1,28 @@
+# trireason: larger hardware (>= 40 GB GPU). All 30 blocks trainable, standard AdamW. Not runnable on 8 GB.
+inherit:
+- ../base/runtime_large.yaml
+- ../base/optim_qat_finetune.yaml
+- ../base/bitnet2b.yaml
+run:
+  name: trireason-2b-full
+  specialist: trireason
+  output_dir: checkpoints/trireason/bitnet2b_full
+  seed: 1337
+model:
+  strategy: full
+data:
+  version: v1-bitnet
+  dir: data/trireason/v1-bitnet
+  sources:
+  - key: webinstruct_sub
+    max_examples: 150000
+    keep_regex: \b(physics|velocity|acceleration|force|energy|momentum|circuit|voltage|current|resist|thermo|entropy|heat|pressure|chemi|reaction|molar|engineer|stress|strain|beam|fluid|wave|frequency|optic|electr|magnet|quantum|statistic|experiment|logic)\w*
+    drop_regex: ^\s*(prove that|find the integral|evaluate the integral|simplify)
+  - key: arc_train
+    weight: 2
+  - key: synthetic
+    n: 10000
+    seed: 0
+optim:
+  name: adamw
+  max_steps: 2000

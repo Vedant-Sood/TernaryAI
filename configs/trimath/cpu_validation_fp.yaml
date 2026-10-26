@@ -1,0 +1,13 @@
+# trimath: dense full-precision baseline with identical shapes, data, seed and steps.
+inherit:
+- cpu_validation.yaml
+run:
+  name: trimath-cpu-fp
+  output_dir: checkpoints/trimath/cpu_fp
+model:
+  arch:
+    linear: fp
+    bitlinear_input_norm: false
+    act_bits: null
+optim:
+  lr: 0.001

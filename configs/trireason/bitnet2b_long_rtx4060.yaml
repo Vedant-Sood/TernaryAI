@@ -1,0 +1,15 @@
+# trireason: long-running session (days). 12 trainable blocks; AdamW state and fp32 master weights
+# live in system RAM (~10 GB) so the GPU only holds bf16 weights and grads. Resume with --resume auto.
+inherit:
+- bitnet2b_partial_rtx4060.yaml
+run:
+  name: trireason-2b-long
+  output_dir: checkpoints/trireason/bitnet2b_long
+model:
+  trainable_layers: last:12
+optim:
+  name: adamw_cpu
+  max_steps: 3000
+  schedule: wsd
+runtime:
+  checkpoint_interval: 100

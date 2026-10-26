@@ -1,0 +1,38 @@
+# tricode: ternary-preserving LoRA on all 30 blocks. The low-rank delta is added to the latent weight
+# BEFORE absmean ternarization, so forward weights stay in {-1,0,+1}; adapters are merged and
+# re-ternarized at export. This is not QLoRA: no dense adapter exists in the exported model.
+inherit:
+- ../base/runtime_rtx4060.yaml
+- ../base/optim_qat_finetune.yaml
+- ../base/bitnet2b.yaml
+run:
+  name: tricode-2b-lora
+  specialist: tricode
+  output_dir: checkpoints/tricode/bitnet2b_lora
+  seed: 1337
+model:
+  strategy: lora
+  lora_rank: 32
+data:
+  version: v1-bitnet
+  dir: data/tricode/v1-bitnet
+  sources:
+  - key: oss_instruct_sc2
+    max_examples: 50000
+    require_valid_python: true
+  - key: opencodeinstruct
+    max_examples: 150000
+    require_valid_python: true
+  - key: synthetic
+    n: 5000
+    seed: 0
+optim:
+  lr: 0.0002
+  max_steps: 600
+runtime:
+  seq_len: 1024
+  seq_len_schedule:
+  - - 0
+    - 512
+  - - 200
+    - 1024

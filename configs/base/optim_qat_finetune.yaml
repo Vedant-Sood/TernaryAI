@@ -1,0 +1,12 @@
+# QAT fine-tuning of an already-ternary model (BitNet 2B4T). Small LR: large updates flip many
+# ternary codes at once and destabilise the pretrained solution.
+optim:
+  name: adamw8bit          # bitsandbytes; falls back with a clear error if not installed
+  lr: 1.0e-5
+  min_lr_frac: 0.1
+  warmup_steps: 50
+  schedule: cosine
+  weight_decay: 0.0
+  betas: [0.9, 0.95]
+  grad_clip: 1.0
+  embed_lr_scale: 0.1

@@ -1,0 +1,28 @@
+# tricode: larger hardware (>= 40 GB GPU). All 30 blocks trainable, standard AdamW. Not runnable on 8 GB.
+inherit:
+- ../base/runtime_large.yaml
+- ../base/optim_qat_finetune.yaml
+- ../base/bitnet2b.yaml
+run:
+  name: tricode-2b-full
+  specialist: tricode
+  output_dir: checkpoints/tricode/bitnet2b_full
+  seed: 1337
+model:
+  strategy: full
+data:
+  version: v1-bitnet
+  dir: data/tricode/v1-bitnet
+  sources:
+  - key: oss_instruct_sc2
+    max_examples: 50000
+    require_valid_python: true
+  - key: opencodeinstruct
+    max_examples: 150000
+    require_valid_python: true
+  - key: synthetic
+    n: 5000
+    seed: 0
+optim:
+  name: adamw
+  max_steps: 2000

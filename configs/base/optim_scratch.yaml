@@ -1,0 +1,11 @@
+# From-scratch ternary training. BitNet b1.58 trains best with a higher LR than fp models
+# (Ma et al. 2024 training tips); fp baselines override lr to 1e-3.
+optim:
+  name: adamw
+  lr: 3.0e-3
+  min_lr_frac: 0.1
+  warmup_steps: 100
+  schedule: cosine
+  weight_decay: 0.1
+  betas: [0.9, 0.95]
+  grad_clip: 1.0

@@ -1,0 +1,5 @@
+-r base.txt
+-r hf.txt
+-r serve.txt
+-r dev.txt
+bitsandbytes>=0.43 ; platform_system == "Linux"   # 8-bit AdamW (adamw8bit)

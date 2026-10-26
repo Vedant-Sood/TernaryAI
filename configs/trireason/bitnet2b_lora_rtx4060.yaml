@@ -1,0 +1,38 @@
+# trireason: ternary-preserving LoRA on all 30 blocks. The low-rank delta is added to the latent weight
+# BEFORE absmean ternarization, so forward weights stay in {-1,0,+1}; adapters are merged and
+# re-ternarized at export. This is not QLoRA: no dense adapter exists in the exported model.
+inherit:
+- ../base/runtime_rtx4060.yaml
+- ../base/optim_qat_finetune.yaml
+- ../base/bitnet2b.yaml
+run:
+  name: trireason-2b-lora
+  specialist: trireason
+  output_dir: checkpoints/trireason/bitnet2b_lora
+  seed: 1337
+model:
+  strategy: lora
+  lora_rank: 32
+data:
+  version: v1-bitnet
+  dir: data/trireason/v1-bitnet
+  sources:
+  - key: webinstruct_sub
+    max_examples: 150000
+    keep_regex: \b(physics|velocity|acceleration|force|energy|momentum|circuit|voltage|current|resist|thermo|entropy|heat|pressure|chemi|reaction|molar|engineer|stress|strain|beam|fluid|wave|frequency|optic|electr|magnet|quantum|statistic|experiment|logic)\w*
+    drop_regex: ^\s*(prove that|find the integral|evaluate the integral|simplify)
+  - key: arc_train
+    weight: 2
+  - key: synthetic
+    n: 10000
+    seed: 0
+optim:
+  lr: 0.0002
+  max_steps: 600
+runtime:
+  seq_len: 1024
+  seq_len_schedule:
+  - - 0
+    - 512
+  - - 200
+    - 1024
