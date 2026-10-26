@@ -1,0 +1,46 @@
+# trireason: quick 2B run (~30 min of training) on an 8 GB RTX 4060.
+# Same model and method as bitnet2b_partial_rtx4060.yaml (BitNet 2B4T, last 8 of 30 blocks trained with
+# ternary forward weights). Only the budget is smaller: 5k examples per source, seq 512, 8x accumulation,
+# at most 150 steps and a hard 30-minute wall-clock cap. A smoke test of the full pipeline at real size,
+# not a finished specialist.
+inherit:
+- ../base/runtime_rtx4060.yaml
+- ../base/optim_qat_finetune.yaml
+- ../base/bitnet2b.yaml
+run:
+  name: trireason-2b-quick
+  specialist: trireason
+  output_dir: checkpoints/trireason/bitnet2b_quick
+  seed: 1337
+model:
+  strategy: partial
+  trainable_layers: last:8
+  frozen_cache_codes: false
+data:
+  version: v1-bitnet-quick
+  dir: data/trireason/v1-bitnet-quick
+  sources:
+  - key: webinstruct_sub
+    max_examples: 5000
+    keep_regex: \b(physics|velocity|acceleration|force|energy|momentum|circuit|voltage|current|resist|thermo|entropy|heat|pressure|chemi|reaction|molar|engineer|stress|strain|beam|fluid|wave|frequency|optic|electr|magnet|quantum|statistic|experiment|logic)\w*
+    drop_regex: ^\s*(prove that|find the integral|evaluate the integral|simplify)
+  - key: arc_train
+    weight: 2
+    max_examples: 5000
+  - key: synthetic
+    n: 2000
+    seed: 0
+  synthetic_test: 200
+optim:
+  max_steps: 150
+  warmup_steps: 10
+runtime:
+  grad_accum_steps: 8
+  seq_len: 512
+  seq_len_schedule: null
+  max_train_minutes: 30
+  log_interval: 5
+  checkpoint_interval: 50
+eval:
+  interval: 1000000
+  val_iters: 10

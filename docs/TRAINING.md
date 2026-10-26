@@ -50,6 +50,7 @@ Each specialist directory under `configs/` has the same presets:
 | --- | --- | --- |
 | `smoke.yaml` | architecture smoke test, 30 steps, whole pipeline | any CPU, ~10 s |
 | `cpu_validation.yaml` / `_fp.yaml` | short experimental run, ternary vs dense, 1500 steps | CPU, ~12 min each |
+| `bitnet2b_quick_rtx4060.yaml` | ~30-minute pipeline check at full 2B size (150 steps, seq 512, hard `runtime.max_train_minutes: 30` cap) | RTX 4060 8 GB |
 | `bitnet2b_partial_rtx4060.yaml` | full local fine-tuning experiment | RTX 4060 8 GB |
 | `bitnet2b_lora_rtx4060.yaml` | ternary-LoRA alternative | RTX 4060 8 GB |
 | `bitnet2b_long_rtx4060.yaml` | long-running session (days, resumable) | RTX 4060 + 32 GB RAM |

@@ -56,6 +56,16 @@ def test_resume_reproduces_uninterrupted_run(tmp_path):
     assert np.allclose(lf, ls, atol=1e-5), (lf, ls)
 
 
+def test_time_cap_stops_early_and_saves(tmp_path):
+    cfg = _cfg(tmp_path, 1000, "capped")
+    cfg["runtime"]["max_train_minutes"] = 0
+    t = Trainer(cfg, log=lambda *a: None)
+    t.fit()
+    assert t.step == 0
+    final = [r for r in map(json.loads, open(tmp_path / "capped" / "metrics.jsonl")) if r.get("final")]
+    assert final and final[0]["stopped_on_time"] is True
+
+
 def test_checkpoint_integrity_check(tmp_path):
     m = TriForgeLM(TriForgeConfig(vocab_size=50, max_seq_len=16, d_model=32, n_layers=1, n_heads=2))
     p = save_checkpoint(str(tmp_path), 1, m)

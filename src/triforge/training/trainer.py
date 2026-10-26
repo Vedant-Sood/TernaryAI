@@ -173,7 +173,14 @@ class Trainer:
         t_last, tok_last, t_start = time.time(), self.tokens_seen, time.time()
         if self.device.type == "cuda":
             torch.cuda.reset_peak_memory_stats(self.device)
+        # Optional wall-clock cap (runtime.max_train_minutes): stop early and still evaluate and save.
+        max_min = rcfg.get("max_train_minutes")
+        stopped_on_time = False
         while self.step < ocfg["max_steps"]:
+            if max_min is not None and time.time() - t_start >= 60 * max_min:
+                stopped_on_time = True
+                self.log(f"[train] time cap of {max_min} min reached at step {self.step}")
+                break
             if self.step % ecfg.get("interval", 250) == 0:
                 ev = self.evaluate()
                 if codes0:
@@ -218,7 +225,7 @@ class Trainer:
             ev["flip_rate"] = flip_rate(codes0, self.model)
             ev["zero_fraction"] = ternary_report(self.model)["zero_fraction_of_ternary"]
         self.log(f"[eval] final step {self.step} val_loss {ev['val_loss']:.4f} ppl {ev['val_ppl']:.2f}")
-        self._write({"event": "eval", "step": self.step, "final": True, **ev,
+        self._write({"event": "eval", "step": self.step, "final": True, "stopped_on_time": stopped_on_time, **ev,
                      "train_time_s": time.time() - t_start, "peak_mem_gib": peak_memory_gib(self.device)})
         self.save({"final": True})
         return ev
