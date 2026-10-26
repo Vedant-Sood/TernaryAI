@@ -1,0 +1,8 @@
+{
+  "metric": "pass@1 (greedy)",
+  "accuracy": 0.0,
+  "n": 50,
+  "correct": 0,
+  "seconds": 25.0,
+  "limit": 50
+}

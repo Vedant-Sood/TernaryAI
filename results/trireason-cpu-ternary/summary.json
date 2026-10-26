@@ -1,0 +1,15 @@
+{
+  "model": "trireason-cpu-ternary",
+  "status": "trained",
+  "device": "cpu",
+  "template": "triforge",
+  "decoding": "greedy",
+  "time": "2026-10-26T04:56:53Z",
+  "results": {
+    "arc_challenge": {
+      "error": "ProxyError: 403 Forbidden",
+      "status": "not executed",
+      "seconds": 1.7
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "host": {
+    "platform": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+    "torch": "2.14.1+cu130",
+    "threads": 4,
+    "gpu": null
+  },
+  "export": "checkpoints/exports/trimath-cpu-fp",
+  "status": "trained",
+  "total_params": 3344064,
+  "ternary_params": 0,
+  "high_precision_params": 3344064,
+  "ternary_fraction": 0.0,
+  "zero_fraction_of_ternary": 0.0,
+  "training_only_lora_params": 0,
+  "theoretical_min_bytes": 6688128.0,
+  "two_bit_packed_bytes": 6688128.0,
+  "all_fp16_bytes": 6688128,
+  "export_model_file_bytes": 6691848,
+  "throughput": {
+    "device": "cpu",
+    "batch": 1,
+    "prompt_len": 128,
+    "gen_tokens": 64,
+    "prefill_tokens_per_s": 17498.169186293824,
+    "decode_tokens_per_s": 465.23147795661794,
+    "peak_mem_gib": 0.6121559143066406
+  }
+}

@@ -87,11 +87,15 @@ sources are recorded as `main (unpinned)` in the manifest.
 
 ## Measured: CPU validation build (2026-10-26)
 
-| Specialist | Sources | Kept examples | Train tokens (trained on) | Val tokens | Held-out test |
-| --- | --- | --- | --- | --- | --- |
-| TriCode | synthetic 30k + 600 stdlib files | 19 789 + 368 files | 2.77M (1.71M) | 122k | 342 |
-| TriMath | synthetic 40k | 32 318 | 1.39M (0.82M) | 45k | 498 |
-| TriReason | synthetic 40k | 26 311 | see manifest | see manifest | 487 |
+| Specialist | Sources | Train / val / test examples | Train tokens (loss-bearing) | Val tokens |
+| --- | --- | --- | --- | --- |
+| TriCode | synthetic 30k + 600 stdlib files | 19 552 / 605 / 329 | 2.77M (1.71M) | 123k |
+| TriMath | synthetic 40k | 31 313 / 1 005 / 361 | 1.39M (0.82M) | 44k |
+| TriReason | synthetic 40k | 25 556 / 755 / 252 | 1.35M (0.65M) | 39k |
+
+Source: `data/<specialist>/v0-cpu/manifest.json` (git-ignored; rebuilt by `scripts/run_cpu_validation.sh`).
+Dropped as duplicates: TriCode 10 211 exact + 87 near, TriMath 7 682 exact, TriReason 13 689 exact.
+Decontamination 13-gram index: HumanEval 9 116, MBPP 1 646, GSM8K 46 283 n-grams.
 
 Most of the drop from 30–40k generated items is **exact-duplicate removal** (the generators have
 finite problem spaces), not quality filtering.

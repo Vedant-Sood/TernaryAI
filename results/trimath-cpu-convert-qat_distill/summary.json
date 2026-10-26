@@ -1,0 +1,60 @@
+{
+  "model": "trimath-cpu-convert-qat_distill",
+  "status": "trained",
+  "device": "cpu",
+  "template": "triforge",
+  "decoding": "greedy",
+  "time": "2026-10-26T05:05:57Z",
+  "results": {
+    "val_loss": {
+      "metric": "val_loss",
+      "val_loss": 0.31503901705145837,
+      "val_ppl": 1.3703127754780506,
+      "n_batches": 20,
+      "seq_len": 256,
+      "limit": null,
+      "seconds": 2.5
+    },
+    "synthetic": {
+      "exact_match": {
+        "metric": "exact_match",
+        "accuracy": 0.26038781163434904,
+        "n": 361,
+        "correct": 94,
+        "seconds": 33.05931305885315
+      },
+      "by_task": {
+        "math/arithmetic": {
+          "accuracy": 0.011904761904761904,
+          "n": 84
+        },
+        "math/derivative": {
+          "accuracy": 1.0,
+          "n": 37
+        },
+        "math/fractions": {
+          "accuracy": 0.2608695652173913,
+          "n": 46
+        },
+        "math/gcd": {
+          "accuracy": 0.6363636363636364,
+          "n": 22
+        },
+        "math/lcm": {
+          "accuracy": 0.3125,
+          "n": 16
+        },
+        "math/linear_equation": {
+          "accuracy": 0.23376623376623376,
+          "n": 77
+        },
+        "math/word_problem": {
+          "accuracy": 0.08860759493670886,
+          "n": 79
+        }
+      },
+      "limit": null,
+      "seconds": 33.1
+    }
+  }
+}

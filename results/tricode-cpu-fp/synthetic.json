@@ -1,0 +1,17 @@
+{
+  "exact_match": {
+    "metric": "exact_match",
+    "accuracy": 0.25227963525835867,
+    "n": 329,
+    "correct": 83,
+    "seconds": 13.361277341842651
+  },
+  "by_task": {
+    "code/output": {
+      "accuracy": 0.25227963525835867,
+      "n": 329
+    }
+  },
+  "limit": null,
+  "seconds": 13.4
+}

@@ -1,0 +1,68 @@
+{
+  "model": "trireason-cpu-fp",
+  "status": "trained",
+  "device": "cpu",
+  "template": "triforge",
+  "decoding": "greedy",
+  "time": "2026-10-26T04:54:42Z",
+  "results": {
+    "val_loss": {
+      "metric": "val_loss",
+      "val_loss": 0.27616780549287795,
+      "val_ppl": 1.3180690246931328,
+      "n_batches": 20,
+      "seq_len": 256,
+      "limit": null,
+      "seconds": 1.4
+    },
+    "synthetic": {
+      "exact_match": {
+        "metric": "exact_match",
+        "accuracy": 0.19444444444444445,
+        "n": 252,
+        "correct": 49,
+        "seconds": 9.389398574829102
+      },
+      "by_task": {
+        "reason/circuits": {
+          "accuracy": 0.375,
+          "n": 8
+        },
+        "reason/energy": {
+          "accuracy": 0.02127659574468085,
+          "n": 47
+        },
+        "reason/kinematics": {
+          "accuracy": 0.16129032258064516,
+          "n": 31
+        },
+        "reason/logic": {
+          "accuracy": 0.5,
+          "n": 2
+        },
+        "reason/momentum": {
+          "accuracy": 0.15151515151515152,
+          "n": 33
+        },
+        "reason/syllogism": {
+          "accuracy": 1.0,
+          "n": 7
+        },
+        "reason/units": {
+          "accuracy": 0.6363636363636364,
+          "n": 22
+        },
+        "reason/waves": {
+          "accuracy": 0.22,
+          "n": 50
+        },
+        "reason/work_power": {
+          "accuracy": 0.038461538461538464,
+          "n": 52
+        }
+      },
+      "limit": null,
+      "seconds": 9.4
+    }
+  }
+}

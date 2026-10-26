@@ -1,0 +1,97 @@
+{
+  "host": {
+    "platform": "Linux-6.18.44-fc-v153-x86_64-with-glibc2.39",
+    "torch": "2.14.1+cu130",
+    "threads": 4,
+    "gpu": null
+  },
+  "cases": [
+    {
+      "shape": [
+        6912,
+        2560
+      ],
+      "tokens": 1,
+      "device": "cpu",
+      "dtype": "torch.float32",
+      "reps": 10,
+      "weight_bytes": {
+        "dense_float32": 70778880,
+        "int8_codes": 17694720,
+        "packed_2bit": 4423680
+      },
+      "results": {
+        "dense_fp_matmul": {
+          "ms": 0.9146643999883963,
+          "relative_to_dense": 1.0
+        },
+        "ternary_reference": {
+          "ms": 14.626584199959325,
+          "relative_to_dense": 15.991
+        },
+        "ternary_int8": {
+          "ms": 29.43717750003998,
+          "relative_to_dense": 32.184
+        }
+      }
+    },
+    {
+      "shape": [
+        6912,
+        2560
+      ],
+      "tokens": 16,
+      "device": "cpu",
+      "dtype": "torch.float32",
+      "reps": 10,
+      "weight_bytes": {
+        "dense_float32": 70778880,
+        "int8_codes": 17694720,
+        "packed_2bit": 4423680
+      },
+      "results": {
+        "dense_fp_matmul": {
+          "ms": 5.064847799985728,
+          "relative_to_dense": 1.0
+        },
+        "ternary_reference": {
+          "ms": 17.145354600052087,
+          "relative_to_dense": 3.385
+        },
+        "ternary_int8": {
+          "ms": 18.203866800013202,
+          "relative_to_dense": 3.594
+        }
+      }
+    },
+    {
+      "shape": [
+        6912,
+        2560
+      ],
+      "tokens": 128,
+      "device": "cpu",
+      "dtype": "torch.float32",
+      "reps": 10,
+      "weight_bytes": {
+        "dense_float32": 70778880,
+        "int8_codes": 17694720,
+        "packed_2bit": 4423680
+      },
+      "results": {
+        "dense_fp_matmul": {
+          "ms": 12.173775700011902,
+          "relative_to_dense": 1.0
+        },
+        "ternary_reference": {
+          "ms": 27.78459129995099,
+          "relative_to_dense": 2.282
+        },
+        "ternary_int8": {
+          "ms": 36.19492389998413,
+          "relative_to_dense": 2.973
+        }
+      }
+    }
+  ]
+}
