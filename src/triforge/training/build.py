@@ -58,12 +58,37 @@ def build_model(mcfg: dict, device="cpu"):
             ternarize_hf(model, act_bits=mcfg.get("act_bits", 8), lora_rank=lora_rank)
         if mcfg.get("gradient_checkpointing", True):
             model.gradient_checkpointing_enable()
+    elif source == "convert_triforge":
+        model = load_triforge_run(mcfg["path"], linear="ternary", act_bits=mcfg.get("act_bits", 8))
+    elif source == "triforge_run":
+        model = load_triforge_run(mcfg["path"])
     elif source == "triforge":
         from ..inference.export import load_export
         model = load_export(resolve_path(mcfg["path"]), trainable=True)
     else:
         raise ValueError(f"unknown model.source {source}")
     return model.to(device)
+
+
+def load_triforge_run(run_dir: str, linear: str | None = None, act_bits=8):
+    """Load the newest checkpoint of a TriForge run; optionally re-type its linears.
+
+    linear="ternary" on a dense (fp) run is post-training ternarization: the dense weights become the
+    latent weights of BitLinear layers (no extra input norm, so the function is unchanged up to
+    quantization). Gradient checkpointing and other runtime flags are reset to defaults.
+    """
+    from .checkpoint import latest_checkpoint, load_checkpoint
+    run_dir = resolve_path(run_dir)
+    arch = TriForgeConfig.load(os.path.join(run_dir, "arch.json")).to_dict()
+    src_linear = arch["linear"]
+    if linear and linear != src_linear:
+        arch.update(linear=linear, bitlinear_input_norm=False, act_bits=act_bits if linear == "ternary" else None)
+    model = TriForgeLM(TriForgeConfig.from_dict(arch))
+    ck = latest_checkpoint(run_dir)
+    if ck is None:
+        raise FileNotFoundError(f"no checkpoint in {run_dir}")
+    load_checkpoint(ck, model, strict=linear is None or linear == src_linear)
+    return model
 
 
 def trainable_summary(model) -> dict:

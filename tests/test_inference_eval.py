@@ -100,3 +100,19 @@ def test_eval_runner_on_tiny_model(tmp_path):
     assert eval_code(m, tok, code, "triforge", "synthetic", max_new_tokens=4)["n"] == 1
     mc = [{"id": "q", "question": "2+2?", "choices": ["4", "5"], "labels": ["A", "B"], "answer": "A"}]
     assert eval_multiple_choice(m, tok, mc, "triforge")["n"] == 1
+
+
+def test_model_card_renders_only_measured_results(tmp_path):
+    import json
+
+    from triforge.huggingface.model_card import render
+    s = {"model": "trimath-x", "status": "trained", "results": {
+        "val_loss": {"val_loss": 0.5, "val_ppl": 1.65, "n_batches": 20},
+        "gsm8k": {"metric": "exact_match", "accuracy": 0.1, "n": 100},
+        "math500": {"error": "ConnectionError: blocked", "status": "not executed"}}}
+    p = tmp_path / "summary.json"
+    p.write_text(json.dumps(s))
+    md = render("trimath", "status text", [str(p)])
+    assert md.startswith("---\nlicense: mit") and "| trimath-x | gsm8k (exact_match) | 10.0% | 100 | trained |" in md
+    assert "not executed" in md and "status text" in md
+    assert "_No evaluation results yet._" in render("tricode", "s", [])

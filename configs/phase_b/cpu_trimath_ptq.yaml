@@ -1,0 +1,6 @@
+# Phase B at CPU scale, step 1: post-training ternarization of the trained dense (fp) TriMath
+# validation model. max_steps: 0 = evaluate only. No training happens in this run.
+inherit: [../trimath/cpu_validation.yaml]
+run: {name: trimath-cpu-ptq, output_dir: checkpoints/phase_b/cpu_trimath_ptq}
+model: {source: convert_triforge, path: checkpoints/trimath/cpu_fp, act_bits: 8}
+optim: {max_steps: 0}

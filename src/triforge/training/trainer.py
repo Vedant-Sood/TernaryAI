@@ -22,7 +22,7 @@ import yaml
 
 from ..datasets.loader import TokenDataset
 from ..quantization.bitlinear import set_ternary_mix
-from ..quantization.convert import ternary_report
+from ..quantization.convert import flip_rate, snapshot_codes, ternary_report
 from .build import build_model, load_teacher, save_arch, trainable_summary
 from .checkpoint import latest_checkpoint, load_checkpoint, save_checkpoint
 from .config import get, resolve_path
@@ -166,6 +166,9 @@ class Trainer:
         accum = rcfg.get("grad_accum_steps", 1)
         mb = rcfg["micro_batch_size"]
         ptern = ocfg.get("progressive_ternarization_steps", 0)
+        # Fraction of ternary codes that changed since the start of this run: shows how much QAT
+        # actually moves a ternary model (a small LR or a LoRA delta may flip almost nothing).
+        codes0 = snapshot_codes(self.model) if rcfg.get("track_flips", True) else None
         self.model.train()
         t_last, tok_last, t_start = time.time(), self.tokens_seen, time.time()
         if self.device.type == "cuda":
@@ -173,6 +176,8 @@ class Trainer:
         while self.step < ocfg["max_steps"]:
             if self.step % ecfg.get("interval", 250) == 0:
                 ev = self.evaluate()
+                if codes0:
+                    ev["flip_rate"] = flip_rate(codes0, self.model)
                 self.log(f"[eval] step {self.step} val_loss {ev['val_loss']:.4f} ppl {ev['val_ppl']:.2f}")
                 self._write({"event": "eval", "step": self.step, **ev})
             lr = lr_at(self.step, ocfg)
@@ -209,6 +214,9 @@ class Trainer:
             if self.step % rcfg.get("checkpoint_interval", 500) == 0:
                 self.save()
         ev = self.evaluate()
+        if codes0:
+            ev["flip_rate"] = flip_rate(codes0, self.model)
+            ev["zero_fraction"] = ternary_report(self.model)["zero_fraction_of_ternary"]
         self.log(f"[eval] final step {self.step} val_loss {ev['val_loss']:.4f} ppl {ev['val_ppl']:.2f}")
         self._write({"event": "eval", "step": self.step, "final": True, **ev,
                      "train_time_s": time.time() - t_start, "peak_mem_gib": peak_memory_gib(self.device)})

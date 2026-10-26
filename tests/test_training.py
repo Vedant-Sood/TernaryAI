@@ -120,3 +120,20 @@ def test_trainable_export_reload_is_exact(tmp_path):
     t = load_export(str(tmp_path), trainable=True).eval()
     x = torch.randint(0, 40, (1, 8))
     assert torch.allclose(m(x)[0], t(x)[0], atol=1e-5)
+
+
+def test_dense_to_ternary_conversion_and_distillation(tmp_path):
+    cfg = _cfg(tmp_path, 3, "fp")
+    cfg["model"]["arch"].update(linear="fp", bitlinear_input_norm=False, act_bits=None)
+    Trainer(cfg, log=lambda *a: None).fit()
+    from triforge.quantization import BitLinear
+    from triforge.training.build import build_model
+    m = build_model({"source": "convert_triforge", "path": str(tmp_path / "fp")})
+    assert sum(isinstance(x, BitLinear) for x in m.modules()) == 14
+    c2 = _cfg(tmp_path, 2, "qat")
+    c2["model"] = {"source": "convert_triforge", "path": str(tmp_path / "fp")}
+    c2["distill"] = {"enabled": True, "alpha": 0.5, "temperature": 2.0,
+                     "teacher": {"source": "triforge_run", "path": str(tmp_path / "fp")}}
+    c2["optim"]["progressive_ternarization_steps"] = 2
+    ev = Trainer(c2, log=lambda *a: None).fit()
+    assert ev["val_loss"] > 0

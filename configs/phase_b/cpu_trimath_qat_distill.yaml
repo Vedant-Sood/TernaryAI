@@ -1,0 +1,9 @@
+# Phase B at CPU scale, step 3: same as cpu_trimath_qat plus distillation from the dense teacher
+# (0.5 CE + 0.5 KL at temperature 2).
+inherit: [cpu_trimath_qat.yaml]
+run: {name: trimath-cpu-convert-qat-distill, output_dir: checkpoints/phase_b/cpu_trimath_qat_distill}
+distill:
+  enabled: true
+  alpha: 0.5
+  temperature: 2.0
+  teacher: {source: triforge_run, path: checkpoints/trimath/cpu_fp}

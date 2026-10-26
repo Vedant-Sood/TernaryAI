@@ -21,6 +21,7 @@ from .code_exec import run_code
 @torch.no_grad()
 def generate_text(model, tok, prompt, template, max_new_tokens=256, temperature=0.0, device="cpu", raw=False):
     ids = tok.encode(prompt) if raw else prompt_ids(tok, prompt, template)
+    max_new_tokens = min(max_new_tokens, model.cfg.max_seq_len // 2)
     max_ctx = model.cfg.max_seq_len - max_new_tokens
     ids = ids[-max_ctx:]
     x = torch.tensor([ids], device=device)
