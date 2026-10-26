@@ -71,6 +71,14 @@ it could not use the GPU anyway.
 PowerShell is still Anaconda base. Do **not** set `KMP_DUPLICATE_LIB_OK=TRUE`; it hides the clash and
 can give wrong results. `scripts/check_env.py` detects both situations.
 
+### Slow downloads: `Failed to download nvidia-cublas-cu12 ... operation timed out`
+The CUDA wheels come from pypi.nvidia.com and are large (cuBLAS ~600 MB, cuDNN ~700 MB). uv's default
+read timeout is 30 s. `install_wsl.sh` sets `UV_HTTP_TIMEOUT=900` and `UV_HTTP_RETRIES=8`, downloads two files
+at a time and retries the torch step; wheels already fetched are cached, so re-running the script resumes.
+If it still times out, check WSL's network with
+`curl -o /dev/null -w '%{speed_download}\n' https://pypi.nvidia.com/nvidia-cublas-cu12/` and, on a VPN, try
+`networkingMode=mirrored` under `[wsl2]` in `.wslconfig` followed by `wsl --shutdown`.
+
 ### `torch.cuda.is_available()` is False
 * `python -c "import torch; print(torch.version.cuda)"` prints `None`: you have a CPU wheel; reinstall
   with `--index-url https://download.pytorch.org/whl/cu128`.
