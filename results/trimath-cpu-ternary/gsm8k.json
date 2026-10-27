@@ -1,0 +1,8 @@
+{
+  "metric": "exact_match",
+  "accuracy": 0.02,
+  "n": 100,
+  "correct": 2,
+  "seconds": 9.0,
+  "limit": 100
+}

@@ -1,0 +1,24 @@
+# tricode: short experimental run. ~3.4M-param ternary model trained from scratch on CPU-sized data
+# (programming and software engineering). Validates the method; it is not the deployable 2B specialist.
+inherit:
+- ../base/runtime_cpu.yaml
+- ../base/optim_scratch.yaml
+- ../base/arch_cpu_validation.yaml
+- ../base/data_cpu.yaml
+run:
+  name: tricode-cpu-ternary
+  specialist: tricode
+  output_dir: checkpoints/tricode/cpu_ternary
+  seed: 1337
+data:
+  version: v0-cpu
+  dir: data/tricode/v0-cpu
+  sources:
+  - key: synthetic
+    n: 30000
+    seed: 0
+  - key: python_stdlib
+    max_files: 600
+    seed: 0
+optim:
+  max_steps: 1500

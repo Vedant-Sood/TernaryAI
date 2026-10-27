@@ -1,0 +1,19 @@
+# ~3.4M-parameter decoder used for the CPU validation runs (shared by all three specialists).
+model:
+  source: scratch
+  strategy: full
+  arch:
+    vocab_size: 4096
+    max_seq_len: 256
+    d_model: 192
+    n_layers: 4
+    n_heads: 4
+    n_kv_heads: 4
+    d_ff: 512
+    mlp: swiglu
+    subln: false
+    bitlinear_input_norm: true
+    linear: ternary
+    act_bits: 8
+    rope_theta: 10000.0
+    tie_embeddings: false

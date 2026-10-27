@@ -1,0 +1,7 @@
+# Phase B at CPU scale, step 2: quantization-aware fine-tuning of the ternarized dense model
+# (300 steps = 20% of the from-scratch budget), with no teacher.
+inherit: [../trimath/cpu_validation.yaml]
+run: {name: trimath-cpu-convert-qat, output_dir: checkpoints/phase_b/cpu_trimath_qat}
+model: {source: convert_triforge, path: checkpoints/trimath/cpu_fp, act_bits: 8}
+optim: {max_steps: 300, lr: 1.0e-3, warmup_steps: 20}
+eval: {interval: 50}

@@ -1,0 +1,21 @@
+# trimath: short experimental run. ~3.4M-param ternary model trained from scratch on CPU-sized data
+# (mathematics and symbolic reasoning). Validates the method; it is not the deployable 2B specialist.
+inherit:
+- ../base/runtime_cpu.yaml
+- ../base/optim_scratch.yaml
+- ../base/arch_cpu_validation.yaml
+- ../base/data_cpu.yaml
+run:
+  name: trimath-cpu-ternary
+  specialist: trimath
+  output_dir: checkpoints/trimath/cpu_ternary
+  seed: 1337
+data:
+  version: v0-cpu
+  dir: data/trimath/v0-cpu
+  sources:
+  - key: synthetic
+    n: 40000
+    seed: 0
+optim:
+  max_steps: 1500

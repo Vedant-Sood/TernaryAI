@@ -1,0 +1,9 @@
+# Inference registry: model name -> export directory. `triforge models` shows what is installed.
+# A name is routable when its `specialist` matches the router's recommendation.
+models:
+  tricode:   {specialist: tricode,   path: checkpoints/exports/tricode-2b}
+  trimath:   {specialist: trimath,   path: checkpoints/exports/trimath-2b}
+  trireason: {specialist: trireason, path: checkpoints/exports/trireason-2b}
+  tricode-cpu:   {specialist: tricode,   path: checkpoints/exports/tricode-cpu-ternary}
+  trimath-cpu:   {specialist: trimath,   path: checkpoints/exports/trimath-cpu-ternary}
+  trireason-cpu: {specialist: trireason, path: checkpoints/exports/trireason-cpu-ternary}

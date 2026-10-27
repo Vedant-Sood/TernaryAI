@@ -1,0 +1,6 @@
+# Core runtime (torch is installed separately with the right CUDA wheel; see docs/INSTALL.md)
+numpy>=1.26
+safetensors>=0.4
+tokenizers>=0.19
+pyyaml>=6
+psutil>=5.9

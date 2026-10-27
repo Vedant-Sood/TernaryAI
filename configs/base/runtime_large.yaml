@@ -1,0 +1,15 @@
+# Larger hardware (e.g. one 24-80 GB GPU). Same model, more batch, all layers trainable.
+runtime:
+  device: cuda
+  precision: bf16
+  param_dtype: bf16
+  micro_batch_size: 8
+  grad_accum_steps: 8
+  seq_len: 4096
+  seq_len_schedule: [[0, 1024], [500, 2048], [1500, 4096]]
+  eval_batch_size: 4
+  eval_seq_len: 2048
+  log_interval: 10
+  checkpoint_interval: 500
+  keep_last: 3
+  loss_chunk: 2048

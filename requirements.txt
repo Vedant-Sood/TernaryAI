@@ -1,3 +1,5 @@
+# Legacy phase-0 scripts (train.py / compare.py at the repo root) need only these.
+# TriForge itself: see requirements/ and docs/INSTALL.md.
 torch>=2.1
 numpy
 pytest

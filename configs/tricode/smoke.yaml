@@ -1,0 +1,40 @@
+# tricode architecture smoke test: tiny model, 30 steps on CPU. Validates data -> train -> checkpoint -> export.
+inherit:
+- ../base/runtime_cpu.yaml
+- ../base/optim_scratch.yaml
+- ../base/arch_cpu_validation.yaml
+- ../base/data_cpu.yaml
+run:
+  name: tricode-smoke
+  specialist: tricode
+  output_dir: checkpoints/tricode/smoke
+  seed: 1337
+model:
+  arch:
+    d_model: 64
+    n_layers: 2
+    n_heads: 2
+    n_kv_heads: 2
+    d_ff: 128
+    max_seq_len: 128
+data:
+  version: v0-cpu
+  dir: data/tricode/v0-cpu
+  sources:
+  - key: synthetic
+    n: 30000
+    seed: 0
+  - key: python_stdlib
+    max_files: 600
+    seed: 0
+optim:
+  max_steps: 30
+  warmup_steps: 5
+runtime:
+  seq_len: 128
+  micro_batch_size: 4
+  checkpoint_interval: 15
+  log_interval: 5
+eval:
+  interval: 15
+  val_iters: 2

@@ -4,3 +4,15 @@ __pycache__/
 data/
 runs/*/ckpt.pt
 *.log
+# TriForge: never commit data, checkpoints, caches or credentials
+/data/
+/checkpoints/*
+!/checkpoints/README.md
+/results/**/*.jsonl
+/models/
+.venv/
+*.egg-info/
+.env
+*.token
+hf_token*
+wandb/

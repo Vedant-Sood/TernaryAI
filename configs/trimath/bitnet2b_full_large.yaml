@@ -1,0 +1,28 @@
+# trimath: larger hardware (>= 40 GB GPU). All 30 blocks trainable, standard AdamW. Not runnable on 8 GB.
+inherit:
+- ../base/runtime_large.yaml
+- ../base/optim_qat_finetune.yaml
+- ../base/bitnet2b.yaml
+run:
+  name: trimath-2b-full
+  specialist: trimath
+  output_dir: checkpoints/trimath/bitnet2b_full
+  seed: 1337
+model:
+  strategy: full
+data:
+  version: v1-bitnet
+  dir: data/trimath/v1-bitnet
+  sources:
+  - key: numinamath_cot
+    max_examples: 150000
+  - key: openmathinstruct2
+    max_examples: 100000
+  - key: gsm8k_train
+    weight: 2
+  - key: synthetic
+    n: 10000
+    seed: 0
+optim:
+  name: adamw
+  max_steps: 2000

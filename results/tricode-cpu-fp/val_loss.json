@@ -1,0 +1,9 @@
+{
+  "metric": "val_loss",
+  "val_loss": 3.1052162885665893,
+  "val_ppl": 22.31404472612827,
+  "n_batches": 20,
+  "seq_len": 256,
+  "limit": null,
+  "seconds": 1.3
+}
