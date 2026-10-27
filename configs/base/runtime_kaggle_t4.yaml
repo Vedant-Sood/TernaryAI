@@ -1,0 +1,12 @@
+# Kaggle Notebooks, NVIDIA T4 (16 GB, compute 7.5). Layered on top of an RTX 4060 preset.
+# The T4 has no native bf16, so training uses fp16 autocast with loss scaling and keeps the
+# trainable latent weights in fp32 (~2.2 GB more than bf16 for the last 8 blocks; the frozen
+# packed blocks and the embedding are unchanged). Only one of the two T4s is used.
+# Sessions end after 12 h: scripts/kaggle_session.py sets runtime.max_train_minutes from the
+# time left, and checkpoints are kept small enough for the 20 GB /kaggle/working limit.
+runtime:
+  device: cuda
+  precision: fp16
+  param_dtype: fp32
+  checkpoint_interval: 50
+  keep_last: 1

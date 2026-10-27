@@ -55,6 +55,7 @@ Each specialist directory under `configs/` has the same presets:
 | `bitnet2b_lora_rtx4060.yaml` | ternary-LoRA alternative | RTX 4060 8 GB |
 | `bitnet2b_long_rtx4060.yaml` | long-running session (days, resumable) | RTX 4060 + 32 GB RAM |
 | `bitnet2b_full_large.yaml` | larger hardware, all blocks trainable | ≥ 40 GB GPU |
+| `bitnet2b_{quick,partial}_kaggle_t4.yaml` | same runs on a free Kaggle T4: fp16 + loss scaling, fp32 trainable weights, resumed across 12 h sessions ([KAGGLE.md](KAGGLE.md)) | Kaggle T4 16 GB |
 
 Configs are split into `run / model / data / optim / runtime / eval / distill` sections with
 `inherit:` for shared bases (`configs/base/`). Override anything on the command line:

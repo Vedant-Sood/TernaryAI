@@ -1,0 +1,9 @@
+# trireason: full fine-tuning run on a Kaggle T4, resumable across 12-hour sessions.
+# Same data, model and schedule as bitnet2b_partial_rtx4060.yaml; only the runtime differs (fp16 + fp32
+# trainable weights, see ../base/runtime_kaggle_t4.yaml). Run it through scripts/kaggle_session.py.
+inherit:
+- bitnet2b_partial_rtx4060.yaml
+- ../base/runtime_kaggle_t4.yaml
+run:
+  name: trireason-2b-partial-kaggle
+  output_dir: checkpoints/trireason/bitnet2b_partial_kaggle

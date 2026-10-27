@@ -3,7 +3,8 @@
     python scripts/train.py --config configs/trimath/cpu_validation.yaml
     python scripts/train.py --config configs/trimath/bitnet2b_partial_rtx4060.yaml --resume auto
 
-Features: bf16 autocast on CUDA, gradient accumulation, gradient checkpointing, sequence-length
+Features: bf16 autocast on CUDA (fp16 + loss scaling on GPUs without native bf16, e.g. the T4),
+gradient accumulation, gradient checkpointing, sequence-length
 schedule, cosine or WSD learning rate, progressive ternarization, optional distillation teacher,
 atomic resumable checkpoints (model + optimizer + RNG + data sampler), JSONL metrics, and an
 out-of-memory handler that writes a diagnostic report instead of dying silently.
@@ -64,6 +65,11 @@ def peak_memory_gib(device):
         return float("nan")
 
 
+def native_bf16(device) -> bool:
+    """bf16 tensor cores need compute capability 8.0+ (Ampere); a T4 or P100 only emulates bf16."""
+    return torch.cuda.get_device_capability(device)[0] >= 8
+
+
 class Trainer:
     def __init__(self, cfg: dict, log=print):
         self.cfg, self.log = cfg, log
@@ -77,14 +83,25 @@ class Trainer:
             torch.set_num_threads(rcfg["threads"])
         torch.manual_seed(run.get("seed", 1337))
         prec = rcfg.get("precision", "auto")
+        if self.device.type == "cuda" and prec == "auto":
+            prec = "bf16" if native_bf16(self.device) else "fp16"
         self.amp_dtype = None
-        if self.device.type == "cuda" and prec in ("auto", "bf16"):
+        if self.device.type == "cuda" and prec == "bf16":
             self.amp_dtype = torch.bfloat16
         elif prec == "fp16":
             self.amp_dtype = torch.float16
         self.model = build_model(cfg["model"], device=self.device)
-        if self.device.type == "cuda" and rcfg.get("param_dtype") == "bf16":
+        pdt = rcfg.get("param_dtype")
+        if self.device.type == "cuda" and pdt == "bf16":
             self.model.to(torch.bfloat16)
+        elif pdt == "fp32":
+            # trainable weights in fp32 (frozen packed blocks and embeddings keep their dtype):
+            # needed for fp16 loss scaling, and small QAT updates are not rounded away
+            for p in self.model.parameters():
+                if p.requires_grad:
+                    p.data = p.data.float()
+        # fp16 has a narrow exponent range: scale the loss so small gradients do not underflow
+        self.scaler = torch.amp.GradScaler(self.device.type) if self.amp_dtype == torch.float16 else None
         self.teacher = load_teacher(cfg["distill"], self.device) if get(cfg, "distill.enabled") else None
         if self.teacher is None and rcfg.get("loss_chunk") and hasattr(self.model, "loss_chunk"):
             self.model.loss_chunk = rcfg["loss_chunk"]
@@ -137,6 +154,8 @@ class Trainer:
 
     def save(self, extra=None):
         st = {"tokens_seen": self.tokens_seen, "data_state": self.train_ds.state().tolist(), **(extra or {})}
+        if self.scaler is not None:
+            st["grad_scaler"] = self.scaler.state_dict()
         p = save_checkpoint(self.out, self.step, self.model, self.opt, {"step": self.step}, st,
                             keep_last=self.cfg["runtime"].get("keep_last", 3))
         self.log(f"[ckpt] saved {p}")
@@ -151,6 +170,8 @@ class Trainer:
         self.step, self.tokens_seen = st["step"], st.get("tokens_seen", 0)
         if "data_state" in st:
             self.train_ds.set_state(torch.tensor(st["data_state"], dtype=torch.uint8))
+        if self.scaler is not None and "grad_scaler" in st:
+            self.scaler.load_state_dict(st["grad_scaler"])
         self.log(f"[resume] from {path} at step {self.step}")
 
     # ------------------------------------------------------------------ main loop
@@ -198,12 +219,18 @@ class Trainer:
             for _ in range(accum):
                 x, y, m = self.train_ds.batch(mb, L, self.device)
                 loss = self._loss(x, y, m) / accum
-                loss.backward()
+                (loss if self.scaler is None else self.scaler.scale(loss)).backward()
                 loss_acc += loss.item()
                 self.tokens_seen += x.numel()
+            if self.scaler is not None:
+                self.scaler.unscale_(self.opt)
             gn = torch.nn.utils.clip_grad_norm_([p for p in self.model.parameters() if p.requires_grad],
                                                 ocfg.get("grad_clip", 1.0))
-            self.opt.step()
+            if self.scaler is None:
+                self.opt.step()
+            else:  # skips the update when the scaled gradients overflowed, then adjusts the scale
+                self.scaler.step(self.opt)
+                self.scaler.update()
             self.step += 1
             if not math.isfinite(loss_acc):
                 self.save({"reason": "non-finite loss"})
@@ -214,6 +241,8 @@ class Trainer:
                        "seq_len": L, "tokens_per_s": (self.tokens_seen - tok_last) / (now - t_last),
                        "steps_per_s": rcfg.get("log_interval", 20) / (now - t_last),
                        "peak_mem_gib": peak_memory_gib(self.device), "elapsed_s": now - t_start}
+                if self.scaler is not None:
+                    rec["grad_scale"] = self.scaler.get_scale()
                 self._write(rec)
                 self.log(f"[train] step {self.step} loss {loss_acc:.4f} lr {lr:.2e} "
                          f"{rec['tokens_per_s']:.0f} tok/s mem {rec['peak_mem_gib']:.2f} GiB")

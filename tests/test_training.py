@@ -66,6 +66,36 @@ def test_time_cap_stops_early_and_saves(tmp_path):
     assert final and final[0]["stopped_on_time"] is True
 
 
+def test_fp16_loss_scaling_resume_reproduces_uninterrupted_run(tmp_path):
+    def cfg(steps, out):
+        c = _cfg(tmp_path, steps, out)
+        c["runtime"].update(precision="fp16", param_dtype="fp32")
+        return c
+    full = Trainer(cfg(6, "full16"), log=lambda *a: None)
+    assert full.scaler is not None and full.amp_dtype == torch.float16
+    full.fit()
+    Trainer(cfg(3, "split16"), log=lambda *a: None).fit()
+    b = Trainer(cfg(6, "split16"), log=lambda *a: None)
+    b.resume("auto")
+    assert b.step == 3
+    b.fit()
+    recs = [r for r in map(json.loads, open(tmp_path / "split16" / "metrics.jsonl")) if r.get("event") == "train"]
+    assert all("grad_scale" in r for r in recs)
+    lf = _losses(tmp_path / "full16" / "metrics.jsonl")
+    assert np.allclose(lf, [r["loss"] for r in recs], atol=1e-4), lf
+
+
+def test_relu2_glu_does_not_overflow_in_fp16():
+    from triforge.architectures.transformer import MLP
+    mlp = MLP(TriForgeConfig(vocab_size=8, max_seq_len=8, d_model=8, n_layers=1, n_heads=2, d_ff=8,
+                             mlp="relu2_glu", subln=True, linear="fp")).half()
+    with torch.no_grad():
+        for lin in (mlp.gate_proj, mlp.up_proj):
+            lin.weight.fill_(1.0)
+    y = mlp(torch.full((1, 2, 8), 40.0, dtype=torch.float16))  # gate 320 -> 320^2 * 320 >> 65504
+    assert torch.isfinite(y).all()
+
+
 def test_checkpoint_integrity_check(tmp_path):
     m = TriForgeLM(TriForgeConfig(vocab_size=50, max_seq_len=16, d_model=32, n_layers=1, n_heads=2))
     p = save_checkpoint(str(tmp_path), 1, m)

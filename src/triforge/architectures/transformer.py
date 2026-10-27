@@ -97,11 +97,13 @@ class MLP(nn.Module):
 
     def forward(self, x):
         g = self.gate_proj(x)
+        if g.dtype == torch.float16:  # ReLU^2 * up can exceed the fp16 maximum (65504)
+            g = g.float()
         g = F.silu(g) if self.kind == "swiglu" else F.relu(g).square()
         h = g * self.up_proj(x)
         if self.sub_norm is not None:
             h = self.sub_norm(h)
-        return self.down_proj(h)
+        return self.down_proj(h.to(x.dtype))
 
 
 class Block(nn.Module):

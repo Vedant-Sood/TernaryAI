@@ -58,6 +58,7 @@ triforge serve --port 8765
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | ternary weights, STE, what stays high precision, ternary vs INT4/INT8, packing, kernels, code map |
 | [INSTALL](docs/INSTALL.md) | Windows / WSL2 / CUDA setup, OMP Error #15, troubleshooting |
 | [TRAINING](docs/TRAINING.md) | strategy comparison and choice, 8 GB memory plan, presets, commands, resuming |
+| [KAGGLE](docs/KAGGLE.md) | training the 2B specialists on free Kaggle T4 GPUs, chained across 12-hour sessions |
 | [DATA](docs/DATA.md) | datasets, licences, dedup and decontamination, mixtures |
 | [EVALUATION](docs/EVALUATION.md) | benchmark protocols and efficiency metrics |
 | [INFERENCE](docs/INFERENCE.md) | CLI, local API, router |
