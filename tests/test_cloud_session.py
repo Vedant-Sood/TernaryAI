@@ -1,4 +1,4 @@
-"""Kaggle session chaining: find the previous session's checkpoint under /kaggle/input and restore it."""
+"""Cloud session chaining: restore the previous session's checkpoint and mirror new ones to Drive."""
 
 import importlib.util
 import os
@@ -12,11 +12,11 @@ from triforge.training.checkpoint import latest_checkpoint
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
-_spec = importlib.util.spec_from_file_location("kaggle_session", os.path.join(ROOT, "scripts", "kaggle_session.py"))
+_spec = importlib.util.spec_from_file_location("cloud_session", os.path.join(ROOT, "scripts", "cloud_session.py"))
 ks = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ks)
 
-REL = "checkpoints/trimath/bitnet2b_partial_kaggle"
+REL = "checkpoints/trimath/bitnet2b_partial_t4"
 
 
 def _model():
@@ -34,11 +34,11 @@ def test_restores_newest_checkpoint_from_inputs(tmp_path):
     src, step = ks.find_previous_run(str(tmp_path / "input"), REL)
     assert step == 100 and src == str(new)
     dst = tmp_path / "work" / REL
-    ck = ks.restore_run(src, str(dst), log=lambda *a: None)
+    ck = ks.copy_run(src, str(dst), log=lambda *a: None)
     assert latest_checkpoint(str(dst)) == ck and ks.ckpt_step(ck) == 100
     assert (dst / "metrics.jsonl").exists()
     # a local checkpoint that is already as new is kept
-    assert ks.restore_run(str(old), str(dst), log=lambda *a: None) == ck
+    assert ks.copy_run(str(old), str(dst), log=lambda *a: None) == ck
 
 
 def test_no_input_means_fresh_start(tmp_path):
@@ -60,11 +60,26 @@ def test_minutes_left():
     assert abs(ks.minutes_left(time.time() - 3600, 11.5, 20) - (690 - 60 - 20)) < 1
 
 
-def test_kaggle_configs_use_fp16_and_fp32_weights():
+def test_t4_configs_use_fp16_and_fp32_weights():
     for s in ("tricode", "trimath", "trireason"):
         for preset in ("partial", "quick"):
-            c = load_config(os.path.join(ROOT, "configs", s, f"bitnet2b_{preset}_kaggle_t4.yaml"))
+            c = load_config(os.path.join(ROOT, "configs", s, f"bitnet2b_{preset}_t4.yaml"))
             base = load_config(os.path.join(ROOT, "configs", s, f"bitnet2b_{preset}_rtx4060.yaml"))
             assert c["runtime"]["precision"] == "fp16" and c["runtime"]["param_dtype"] == "fp32"
-            assert c["run"]["output_dir"] == base["run"]["output_dir"] + "_kaggle"
+            assert c["run"]["output_dir"] == base["run"]["output_dir"] + "_t4"
             assert c["data"] == base["data"] and c["optim"] == base["optim"]
+
+
+def test_sync_keeps_one_checkpoint_and_truncates_the_old_one(tmp_path):
+    m = _model()
+    work, drive = tmp_path / "work" / REL, tmp_path / "drive" / REL
+    save_checkpoint(str(work), 50, m, keep_last=1)
+    ks.copy_run(str(work), str(drive), log=lambda *a: None, prune=True)
+    old = drive / "ckpt" / "step_0000050" / "model.safetensors"
+    assert old.stat().st_size > 0
+    save_checkpoint(str(work), 100, m, keep_last=1)
+    ck = ks.copy_run(str(work), str(drive), log=lambda *a: None, prune=True)
+    assert ks.ckpt_step(ck) == 100 and latest_checkpoint(str(drive)) == ck
+    assert sorted(os.listdir(drive / "ckpt")) == ["latest", "step_0000100"]
+    # nothing to copy: nothing changes
+    assert ks.copy_run(str(tmp_path / "nothing"), str(drive), log=lambda *a: None) is None

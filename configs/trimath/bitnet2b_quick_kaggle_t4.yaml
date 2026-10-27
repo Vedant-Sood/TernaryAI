@@ -1,9 +1,0 @@
-# trimath: quick pipeline check (~30 min of training) on a Kaggle T4, resumable across 12-hour sessions.
-# Same data, model and schedule as bitnet2b_quick_rtx4060.yaml; only the runtime differs (fp16 + fp32
-# trainable weights, see ../base/runtime_kaggle_t4.yaml). Run it through scripts/kaggle_session.py.
-inherit:
-- bitnet2b_quick_rtx4060.yaml
-- ../base/runtime_kaggle_t4.yaml
-run:
-  name: trimath-2b-quick-kaggle
-  output_dir: checkpoints/trimath/bitnet2b_quick_kaggle
