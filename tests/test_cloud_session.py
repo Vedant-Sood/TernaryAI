@@ -60,14 +60,17 @@ def test_minutes_left():
     assert abs(ks.minutes_left(time.time() - 3600, 11.5, 20) - (690 - 60 - 20)) < 1
 
 
-def test_t4_configs_use_fp16_and_fp32_weights():
+def test_cloud_presets_change_only_the_runtime():
     for s in ("tricode", "trimath", "trireason"):
         for preset in ("partial", "quick"):
-            c = load_config(os.path.join(ROOT, "configs", s, f"bitnet2b_{preset}_t4.yaml"))
             base = load_config(os.path.join(ROOT, "configs", s, f"bitnet2b_{preset}_rtx4060.yaml"))
-            assert c["runtime"]["precision"] == "fp16" and c["runtime"]["param_dtype"] == "fp32"
-            assert c["run"]["output_dir"] == base["run"]["output_dir"] + "_t4"
-            assert c["data"] == base["data"] and c["optim"] == base["optim"]
+            for profile, prec in (("t4", "fp16"), ("l4", "bf16")):
+                c = load_config(os.path.join(ROOT, "configs", s, f"bitnet2b_{preset}_{profile}.yaml"))
+                assert c["runtime"]["precision"] == prec and c["runtime"]["param_dtype"] == "fp32"
+                assert c["run"]["output_dir"] == base["run"]["output_dir"] + "_" + profile
+                assert c["data"] == base["data"] and c["optim"] == base["optim"]
+                rt, rb = c["runtime"], base["runtime"]  # same effective batch
+                assert rt["micro_batch_size"] * rt["grad_accum_steps"] == rb["micro_batch_size"] * rb["grad_accum_steps"]
 
 
 def test_sync_keeps_one_checkpoint_and_truncates_the_old_one(tmp_path):

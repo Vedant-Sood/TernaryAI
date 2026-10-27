@@ -3,6 +3,7 @@
     # Kaggle: the previous session's output is added to the notebook as an input
     python scripts/cloud_session.py --specialist trimath --preset partial --input-root /kaggle/input
     # Colab: checkpoints live in Google Drive, restored at the start and synced during training
+    # Modal: see modal/train_modal.py (checkpoints are written straight to a Modal Volume)
     python scripts/cloud_session.py --specialist trimath --preset partial \
         --input-root /content/drive/MyDrive/TriForge --sync-dir /content/drive/MyDrive/TriForge
 
@@ -142,7 +143,9 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--specialist", required=True, choices=["tricode", "trimath", "trireason"])
     p.add_argument("--preset", default="partial", choices=["partial", "quick"])
-    p.add_argument("--config", default=None, help="override the config path (default: the preset's _t4 file)")
+    p.add_argument("--profile", default="t4", choices=["t4", "l4"],
+                   help="t4: 16 GB, fp16 (Kaggle, Colab); l4: 24 GB with bf16 (L4, A10G, e.g. Modal)")
+    p.add_argument("--config", default=None, help="override the config path (default: bitnet2b_<preset>_<profile>.yaml)")
     p.add_argument("--input-root", default="/kaggle/input", help="where earlier sessions' outputs are")
     p.add_argument("--sync-dir", default=None,
                    help="mirror checkpoints, data and exports here during the session (e.g. a Google Drive folder)")
@@ -155,7 +158,7 @@ def main():
     p.add_argument("--set", nargs="*", default=[], help="extra dotted overrides passed to train.py")
     args = p.parse_args()
 
-    cfg_path = args.config or f"configs/{args.specialist}/bitnet2b_{args.preset}_t4.yaml"
+    cfg_path = args.config or f"configs/{args.specialist}/bitnet2b_{args.preset}_{args.profile}.yaml"
     cfg = load_config(os.path.join(ROOT, cfg_path), args.set)
     rel_out, rel_data = cfg["run"]["output_dir"], cfg["data"]["dir"]
     out_dir, data_dir = resolve_path(rel_out), resolve_path(rel_data)
@@ -194,7 +197,7 @@ def main():
     print(f"[session] checkpoint {ck}, step {ckpt_step(ck)} of {cfg['optim']['max_steps']}"
           + (" (schedule finished)" if done else ": run the notebook again to continue"))
     if done and args.export_when_done:
-        exp = os.path.join("checkpoints", "exports", f"{args.specialist}-2b-{args.preset}-t4")
+        exp = os.path.join("checkpoints", "exports", f"{args.specialist}-2b-{args.preset}-{args.profile}")
         rc = run([sys.executable, "scripts/export.py", "--run", rel_out, "--out", exp])
         if rc == 0 and args.sync_dir:
             shutil.copytree(os.path.join(ROOT, exp), os.path.join(args.sync_dir, exp), dirs_exist_ok=True)

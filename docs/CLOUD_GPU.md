@@ -1,4 +1,4 @@
-# Training the 2B specialists on free cloud GPUs (Colab, Kaggle)
+# Training the 2B specialists on cloud GPUs (Modal, Colab, Kaggle)
 
 Both platforms give a free NVIDIA T4 (16 GB) for time-limited sessions:
 
@@ -31,10 +31,36 @@ the runtime (`configs/base/runtime_t4.yaml`):
 
 Output directories end in `_t4`, so laptop and cloud runs never mix.
 
-`scripts/cloud_session.py` runs one session: it restores the newest checkpoint and the tokenized data
+`scripts/cloud_session.py` runs one session (`--profile t4` or `l4` picks the presets): it restores the newest checkpoint and the tokenized data
 from `--input-root`, prepares the data if there is none, trains with `--resume auto` until
 `--save-margin-min` (20) minutes before `--budget-hours` (11.5), and with `--sync-dir` copies every
 new checkpoint there while training. `--export-when-done` exports the model once the schedule is finished.
+
+## Modal
+
+Modal's Starter plan includes $30 of compute per month (usage beyond that is billed, so set a
+spending limit in the Modal dashboard). On-demand GPUs, runs keep going with the laptop closed, and
+one function call can last up to 24 hours. `cloud/modal_train.py` uses an **L4** (24 GB, native bf16)
+by default with the `bitnet2b_{quick,partial}_l4.yaml` presets (`configs/base/runtime_l4.yaml`: bf16
+autocast, fp32 trainable weights, micro-batch 2 × half the accumulation, same effective batch).
+
+```bash
+pip install modal
+modal setup                                       # once: sign in from the browser
+cd TernaryAI                                      # run from the repo root (it is copied into the image)
+modal run --detach cloud/modal_train.py --specialist trimath --preset quick
+modal app logs triforge                           # follow a detached run (or use the dashboard)
+modal volume ls triforge checkpoints/trimath
+modal volume get triforge checkpoints/exports ./exports
+```
+
+* Checkpoints, tokenized data and the Hugging Face cache are on the Volume `triforge`, so the model is
+  downloaded once and a run that hits the 24 h limit resumes with the same `modal run` command.
+* `TRIFORGE_GPU=A10G` picks an A10G (same presets); `TRIFORGE_GPU=T4` a T4 (fp16 `_t4` presets).
+* Cost estimate (not measured): Modal lists the L4 at roughly $0.80/h, so the 30-minute quick run is
+  well under $1 and a full `partial` run (speed unknown until the quick run reports `tokens_per_s`)
+  probably costs a few dollars to ~$15. Check current prices on modal.com/pricing.
+* Not tested on Modal yet: the first quick run is also the test of the image and the Volume.
 
 ## Colab
 

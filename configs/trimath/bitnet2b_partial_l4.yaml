@@ -1,0 +1,11 @@
+# trimath: full fine-tuning run on a 24 GB bf16 GPU (L4 / A10G, e.g. on Modal).
+# Same data, model and schedule as bitnet2b_partial_rtx4060.yaml; only the runtime differs (fp32 trainable
+# weights, micro-batch 2, see ../base/runtime_l4.yaml). Run it through scripts/cloud_session.py or modal/train_modal.py.
+inherit:
+- bitnet2b_partial_rtx4060.yaml
+- ../base/runtime_l4.yaml
+run:
+  name: trimath-2b-partial-l4
+  output_dir: checkpoints/trimath/bitnet2b_partial_l4
+runtime:
+  grad_accum_steps: 16   # micro-batch 2: same effective batch as the RTX 4060 preset

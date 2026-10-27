@@ -1,0 +1,11 @@
+# trireason: quick pipeline check (~30 min of training) on a 24 GB bf16 GPU (L4 / A10G, e.g. on Modal).
+# Same data, model and schedule as bitnet2b_quick_rtx4060.yaml; only the runtime differs (fp32 trainable
+# weights, micro-batch 2, see ../base/runtime_l4.yaml). Run it through scripts/cloud_session.py or modal/train_modal.py.
+inherit:
+- bitnet2b_quick_rtx4060.yaml
+- ../base/runtime_l4.yaml
+run:
+  name: trireason-2b-quick-l4
+  output_dir: checkpoints/trireason/bitnet2b_quick_l4
+runtime:
+  grad_accum_steps: 4   # micro-batch 2: same effective batch as the RTX 4060 preset
