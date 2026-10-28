@@ -56,6 +56,7 @@ Each specialist directory under `configs/` has the same presets:
 | `bitnet2b_long_rtx4060.yaml` | long-running session (days, resumable) | RTX 4060 + 32 GB RAM |
 | `bitnet2b_full_large.yaml` | larger hardware, all blocks trainable | ≥ 40 GB GPU |
 | `bitnet2b_{quick,partial}_t4.yaml` | same runs on a free Colab or Kaggle T4: fp16 + loss scaling, fp32 trainable weights, resumed across sessions ([CLOUD_GPU.md](CLOUD_GPU.md)) | T4 16 GB |
+| `bitnet2b_{quick,partial}_l4.yaml` | same runs on a 24 GB bf16 GPU (L4 / A10G, e.g. Modal): fp32 trainable weights, micro-batch 2 ([CLOUD_GPU.md](CLOUD_GPU.md)) | L4 / A10G 24 GB |
 
 Configs are split into `run / model / data / optim / runtime / eval / distill` sections with
 `inherit:` for shared bases (`configs/base/`). Override anything on the command line:
@@ -97,6 +98,8 @@ triforge chat -m auto
   and `state.json` (step, tokens seen, data-sampler state, SHA-256 of the model file).
 * Writes are atomic (temp dir + rename; `latest` pointer updated last), so a crash mid-save keeps
   the previous checkpoint usable. `keep_last` controls retention.
+* Several GPUs: `torchrun --standalone --nproc_per_node=N scripts/train.py ...` (data parallel; gradients
+  averaged, accumulation split across GPUs, rank 0 saves). Checkpoints are interchangeable with single-GPU runs.
 * `--resume auto` continues from `latest`; the resumed run reproduces the uninterrupted run's losses
   exactly (`test_resume_reproduces_uninterrupted_run`).
 * Ctrl-C saves a checkpoint before exiting (exit code 130). A CUDA OOM saves one if possible and

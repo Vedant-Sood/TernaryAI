@@ -1,0 +1,12 @@
+# 24 GB GPU with native bf16 (NVIDIA L4 or A10G, e.g. on Modal). Layered on top of an RTX 4060 preset.
+# bf16 autocast as on the laptop, but the trainable latent weights stay in fp32 (small QAT updates
+# at lr 1e-5 are not rounded away; ~2.2 GB more than bf16 for the last 8 blocks), and micro-batches
+# of 2 with half the accumulation keep the same effective batch. With several GPUs, scripts/cloud_session.py
+# runs one process per GPU (data parallel) and splits the accumulation steps between them.
+runtime:
+  device: cuda
+  precision: bf16
+  param_dtype: fp32
+  micro_batch_size: 2
+  checkpoint_interval: 50
+  keep_last: 2

@@ -3,6 +3,7 @@
     python scripts/train.py --config configs/trimath/cpu_validation.yaml
     python scripts/train.py --config configs/trimath/bitnet2b_partial_rtx4060.yaml --resume auto
     python scripts/train.py --config ... --set optim.lr=5e-6 runtime.micro_batch_size=1
+    torchrun --standalone --nproc_per_node=2 scripts/train.py --config ...   # data parallel, 2 GPUs
 
 Exit codes: 0 ok, 3 CUDA out of memory (diagnostics in <output_dir>/oom_report.json), 4 non-finite loss.
 """
@@ -30,7 +31,7 @@ def main():
             trainer.resume(args.resume)
         trainer.fit()
     except torch.OutOfMemoryError as e:
-        if trainer is not None:
+        if trainer is not None and trainer.world == 1:  # a save is collective when distributed
             try:
                 trainer.opt.zero_grad(set_to_none=True)
                 torch.cuda.empty_cache()
@@ -43,9 +44,12 @@ def main():
         print(f"training diverged: {e}", file=sys.stderr)
         sys.exit(4)
     except KeyboardInterrupt:
-        if trainer is not None:
+        if trainer is not None and trainer.world == 1:
             trainer.save({"reason": "interrupted"})
         sys.exit(130)
+    finally:
+        if torch.distributed.is_initialized():
+            torch.distributed.destroy_process_group()
 
 
 if __name__ == "__main__":

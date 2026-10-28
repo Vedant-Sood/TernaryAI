@@ -177,3 +177,43 @@ def test_dense_to_ternary_conversion_and_distillation(tmp_path):
     c2["optim"]["progressive_ternarization_steps"] = 2
     ev = Trainer(c2, log=lambda *a: None).fit()
     assert ev["val_loss"] > 0
+
+
+_DDP_SCRIPT = """
+import hashlib, json, sys, torch
+sys.path.insert(0, {src!r})
+from triforge.training import Trainer
+cfg, resume = json.loads(sys.argv[1]), sys.argv[2] == "1"
+t = Trainer(cfg, log=lambda *a: None)
+if resume:
+    t.resume("auto")
+t.fit()
+h = hashlib.sha256(b"".join(p.detach().numpy().tobytes() for p in t._trainable())).hexdigest()
+open(cfg["run"]["output_dir"] + f"/params_rank{{t.rank}}.txt", "w").write(h)
+"""
+
+
+def _torchrun(tmp_path, cfg, resume=False):
+    script = tmp_path / "ddp_train.py"
+    script.write_text(_DDP_SCRIPT.format(src=os.path.join(ROOT, "src")))
+    env = {k: v for k, v in os.environ.items() if k not in ("RANK", "WORLD_SIZE", "LOCAL_RANK")}
+    r = subprocess.run([sys.executable, "-m", "torch.distributed.run", "--standalone", "--nproc_per_node=2",
+                        str(script), json.dumps(cfg), "1" if resume else "0"],
+                       capture_output=True, text=True, timeout=300, env=env)
+    assert r.returncode == 0, r.stderr[-3000:]
+
+
+def test_two_process_data_parallel_stays_in_sync_and_resumes_exactly(tmp_path):
+    full = _cfg(tmp_path, 6, "ddp_full")
+    _torchrun(tmp_path, full)
+    out = tmp_path / "ddp_full"
+    assert (out / "params_rank0.txt").read_text() == (out / "params_rank1.txt").read_text()
+    recs = [json.loads(line) for line in open(out / "metrics.jsonl")]
+    assert recs[0]["world_size"] == 2
+    train = [r for r in recs if r.get("event") == "train"]
+    # grad_accum_steps 2 split over 2 ranks: 1 micro-batch of 4 x 16 tokens per rank per step
+    assert len(train) == 6 and train[0]["seq_len"] == 16
+    _torchrun(tmp_path, _cfg(tmp_path, 3, "ddp_split"))
+    _torchrun(tmp_path, _cfg(tmp_path, 6, "ddp_split"), resume=True)
+    assert np.allclose(_losses(out / "metrics.jsonl"), _losses(tmp_path / "ddp_split" / "metrics.jsonl"), atol=1e-5)
+    assert (out / "params_rank0.txt").read_text() == (tmp_path / "ddp_split" / "params_rank0.txt").read_text()
