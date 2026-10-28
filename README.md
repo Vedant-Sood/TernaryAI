@@ -17,6 +17,15 @@ weight is −1, 0 or +1, with one scale per matrix, and matmul inputs are 8-bit 
 
 ## How the 2B specialists are built
 
+| File | What it is |
+| --- | --- |
+| `ternary/bitlinear.py` | `BitLinear`, weight / activation quantizers |
+| `ternary/model.py` | LLaMA-style decoder (RMSNorm, RoPE, SwiGLU); `linear="ternary"` or `"fp"` |
+| `data.py` | Character-level TinyShakespeare (downloaded on first run) |
+| `train.py` | Training loop, writes `runs/<name>/{ckpt.pt,metrics.json,sample.txt}` |
+| `compare.py` | Val loss / perplexity, plus storage with weights packed at 2 bits and 1.58 bits; writes `runs/comparison.json` |
+| `tests/` | Quantizer and model sanity tests (`python -m pytest tests`) |
+| `runs/` | Metrics, samples and comparison from the runs below (checkpoints are not committed) |
 Training a 2B ternary model from scratch took Microsoft 4 trillion tokens, which a laptop can't do.
 TriForge therefore fine-tunes **[BitNet b1.58 2B4T](https://huggingface.co/microsoft/bitnet-b1.58-2B-4T-bf16)**
 (MIT), a model that is *natively* ternary, with quantization-aware training, so the forward weights
@@ -46,6 +55,12 @@ python scripts/train.py          --config configs/trimath/bitnet2b_partial_rtx40
 python scripts/export.py --run checkpoints/trimath/bitnet2b_partial --out checkpoints/exports/trimath-2b
 python scripts/evaluate.py --export checkpoints/exports/trimath-2b --specialist trimath --data data/trimath/v1-bitnet
 
+`compare.py` loads each run's `ckpt.pt`, which is git-ignored, so train both runs before comparing.
+
+Defaults are CPU-sized (4 layers, d=256, context 128, 2000 steps of batch 32).
+On a GPU, try `--n_layer 6 --n_head 6 --n_embd 384 --block_size 256 --max_iters 5000`.
+
+## First results (CPU, 2 threads per run)
 # local inference (CLI and HTTP API), offline once exports are installed
 triforge chat -m auto
 triforge serve --port 8765
@@ -67,6 +82,10 @@ triforge serve --port 8765
 | [REPORT](docs/REPORT.md) | engineering report: done, trained, measured, remaining |
 | [Model cards](docs/model_cards/) | TriCode, TriMath, TriReason |
 
+| Run | Params | Val loss | Val ppl (per char) | Train time | Weight storage |
+| --- | --- | --- | --- | --- | --- |
+| ternary | 3.25M | 1.500 | 4.48 | 44 min | **867 KB** (2-bit packed) / 710 KB at 1.58 bits |
+| fp | 3.25M | 1.476 | 4.38 | 32 min | 6,342 KB (fp16) |
 ## Repository layout
 
 ```
@@ -80,6 +99,16 @@ docs/  results/  checkpoints/ (git-ignored)  data/ (git-ignored)
 ternary/ train.py compare.py data.py runs/   phase-0 TinyShakespeare experiment (kept as is)
 ```
 
+- **Quality:** ternary is within ~1.6% of the full-precision loss at this tiny scale,
+  and the gap was still shrinking at the end of training (it was 0.056 at step 1500, 0.024 at 2000).
+- **Memory:** ternary weights are **~7.3× smaller** than fp16 (~9× at the 1.58-bit bound). Of the 867 KB, ~784 KB is the
+  packed ternary weights and ~83 KB is the fp16 embedding, head and norms (~1.3% of parameters).
+- **Sparsity:** ~33% of the ternary weights are exactly 0, so they can be skipped entirely by a custom kernel.
+- **Generalization:** ternary had a smaller train/val gap (0.27 vs 0.35), consistent with quantization acting as a regularizer.
+- **Speed (the catch):** training is *slower*, because the latent fp weights are kept and the quantizers
+  add work, and here inference is also not faster because PyTorch still does fp matmuls on the
+  de-quantized values. The speed and energy win of ternary only appears with kernels that replace
+  multiplies with additions (e.g. [bitnet.cpp](https://github.com/microsoft/BitNet)) or with custom hardware.
 ## Phase 0 (kept): TinyShakespeare, ternary vs fp
 
 The first experiment (PR #1) still runs unchanged: `pip install -r requirements.txt`, then `python train.py --linear ternary`,

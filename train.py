@@ -3,7 +3,7 @@
 Examples:
   python train.py --linear ternary
   python train.py --linear fp
-  python train.py --linear ternary --n_layer 6 --n_embd 384 --block_size 256 --max_iters 5000   # GPU-sized
+  python train.py --linear ternary --n_layer 6 --n_head 6 --n_embd 384 --block_size 256 --max_iters 5000   # GPU-sized
 
 Writes runs/<name>/{ckpt.pt,metrics.json,sample.txt}.
 """
