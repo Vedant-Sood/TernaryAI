@@ -6,6 +6,7 @@ import ast
 import hashlib
 import re
 import unicodedata
+import warnings
 from collections import defaultdict
 
 _WS = re.compile(r"\s+")
@@ -38,7 +39,9 @@ def python_blocks_parse(text: str) -> bool:
     blocks = re.findall(r"```(?:python|py)\n(.*?)```", text, flags=re.S)
     for b in blocks:
         try:
-            ast.parse(b)
+            with warnings.catch_warnings():  # dataset code often has "\d"-style escapes (SyntaxWarning)
+                warnings.simplefilter("ignore", SyntaxWarning)
+                ast.parse(b)
         except SyntaxError:
             return False
     return True
