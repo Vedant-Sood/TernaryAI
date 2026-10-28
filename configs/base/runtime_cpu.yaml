@@ -1,0 +1,13 @@
+# CPU runtime: small validation models only (< ~50M params).
+runtime:
+  device: cpu
+  precision: fp32
+  threads: null            # null = PyTorch default (all cores)
+  micro_batch_size: 16
+  grad_accum_steps: 1
+  seq_len: 256
+  eval_batch_size: 16
+  log_interval: 25
+  checkpoint_interval: 250
+  keep_last: 2
+  loss_chunk: 0

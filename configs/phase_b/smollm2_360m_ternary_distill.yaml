@@ -1,0 +1,32 @@
+# Phase B: can a DENSE pretrained model be turned into a ternary one?
+# Student: SmolLM2-360M (Apache-2.0) with every decoder nn.Linear replaced by BitLinear
+# (absmean ternary weights, int8 activations), initialised from the dense weights.
+# Teacher: the original dense SmolLM2-360M. Loss = 0.5 CE + 0.5 KL (T=2).
+# Run scripts/convert_pretrained.py first to measure the zero-training (PTQ) loss.
+inherit: [../base/runtime_rtx4060.yaml]
+run: {name: smollm2-360m-ternary-distill, specialist: trireason, output_dir: checkpoints/phase_b/smollm2_360m_distill, seed: 1337}
+model:
+  source: hf_dense
+  path: HuggingFaceTB/SmolLM2-360M
+  ternarize: true
+  strategy: full
+  gradient_checkpointing: true
+distill:
+  enabled: true
+  alpha: 0.5
+  temperature: 2.0
+  teacher: {source: hf_dense, path: HuggingFaceTB/SmolLM2-360M}
+data:
+  version: v1-fineweb
+  dir: data/phase_b/v1-fineweb
+  tokenizer: {type: hf, name: HuggingFaceTB/SmolLM2-360M}
+  template: triforge
+  val_frac: 0.01
+  test_frac: 0.0
+  near_dedup: false
+  decontaminate: {enabled: false}
+  sources: [{key: fineweb_edu, max_examples: 200000}]
+optim: {name: adamw8bit, lr: 3.0e-4, warmup_steps: 100, max_steps: 2000, weight_decay: 0.0, schedule: cosine,
+        min_lr_frac: 0.1, progressive_ternarization_steps: 500}
+runtime: {micro_batch_size: 4, grad_accum_steps: 8, seq_len: 1024, seq_len_schedule: null, loss_chunk: 0}
+eval: {interval: 200, val_iters: 25}

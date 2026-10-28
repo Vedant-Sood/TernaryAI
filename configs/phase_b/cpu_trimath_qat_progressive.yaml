@@ -1,0 +1,5 @@
+# Phase B at CPU scale, step 4: QAT with progressive ternarization (forward weight blends from
+# dense to ternary over the first 150 steps) plus distillation.
+inherit: [cpu_trimath_qat_distill.yaml]
+run: {name: trimath-cpu-convert-progressive, output_dir: checkpoints/phase_b/cpu_trimath_progressive}
+optim: {progressive_ternarization_steps: 150}

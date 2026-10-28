@@ -1,0 +1,9 @@
+# tricode: full fine-tuning run on a free cloud T4 (Kaggle or Colab), resumable across sessions.
+# Same data, model and schedule as bitnet2b_partial_rtx4060.yaml; only the runtime differs (fp16 + fp32
+# trainable weights, see ../base/runtime_t4.yaml). Run it through scripts/cloud_session.py.
+inherit:
+- bitnet2b_partial_rtx4060.yaml
+- ../base/runtime_t4.yaml
+run:
+  name: tricode-2b-partial-t4
+  output_dir: checkpoints/tricode/bitnet2b_partial_t4

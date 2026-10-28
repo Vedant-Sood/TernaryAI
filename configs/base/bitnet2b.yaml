@@ -1,0 +1,22 @@
+# BitNet b1.58 2B4T (Microsoft, MIT): 30 layers, d=2560, GQA 20/5 heads, d_ff=6912, ReLU^2 GLU,
+# sub-layer norms, tied 128,256-token embedding. ~2.41B parameters in total, of which ~2.08B are
+# ternary linear weights and ~0.33B the (high-precision) embedding.
+model:
+  source: bitnet
+  path: microsoft/bitnet-b1.58-2B-4T-bf16   # bf16 master weights (the repo meant for training)
+  revision: null                            # pin a commit hash for reproducibility
+  n_layers_hint: 30
+  max_seq_len: 4096
+  gradient_checkpointing: true
+  train_embeddings: false
+data:
+  tokenizer: {type: hf, name: microsoft/bitnet-b1.58-2B-4T-bf16}
+  template: bitnet
+  val_frac: 0.01
+  test_frac: 0.0
+  synthetic_test: 500
+  near_dedup: true
+  decontaminate: {enabled: true, ngram: 13, benchmarks: [humaneval, mbpp, gsm8k, math500, arc_challenge]}
+eval:
+  interval: 200
+  val_iters: 25

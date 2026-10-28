@@ -1,0 +1,41 @@
+{
+  "exact_match": {
+    "metric": "exact_match",
+    "accuracy": 0.2077562326869806,
+    "n": 361,
+    "correct": 75,
+    "seconds": 38.85406947135925
+  },
+  "by_task": {
+    "math/arithmetic": {
+      "accuracy": 0.0,
+      "n": 84
+    },
+    "math/derivative": {
+      "accuracy": 1.0,
+      "n": 37
+    },
+    "math/fractions": {
+      "accuracy": 0.08695652173913043,
+      "n": 46
+    },
+    "math/gcd": {
+      "accuracy": 0.2727272727272727,
+      "n": 22
+    },
+    "math/lcm": {
+      "accuracy": 0.3125,
+      "n": 16
+    },
+    "math/linear_equation": {
+      "accuracy": 0.2077922077922078,
+      "n": 77
+    },
+    "math/word_problem": {
+      "accuracy": 0.08860759493670886,
+      "n": 79
+    }
+  },
+  "limit": null,
+  "seconds": 38.9
+}

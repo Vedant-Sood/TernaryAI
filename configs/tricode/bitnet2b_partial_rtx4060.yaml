@@ -1,0 +1,32 @@
+# tricode: full local fine-tuning experiment on an 8 GB RTX 4060.
+# Quantization-aware fine-tuning of BitNet b1.58 2B4T: the last 8 of 30 blocks keep bf16 latent weights
+# and train with ternary forward weights (STE); the other 22 blocks are frozen as packed 2-bit codes.
+# Every forward weight in the model is ternary throughout.
+inherit:
+- ../base/runtime_rtx4060.yaml
+- ../base/optim_qat_finetune.yaml
+- ../base/bitnet2b.yaml
+run:
+  name: tricode-2b-partial
+  specialist: tricode
+  output_dir: checkpoints/tricode/bitnet2b_partial
+  seed: 1337
+model:
+  strategy: partial
+  trainable_layers: last:8
+  frozen_cache_codes: false
+data:
+  version: v1-bitnet
+  dir: data/tricode/v1-bitnet
+  sources:
+  - key: oss_instruct_sc2
+    max_examples: 50000
+    require_valid_python: true
+  - key: opencodeinstruct
+    max_examples: 150000
+    require_valid_python: true
+  - key: synthetic
+    n: 5000
+    seed: 0
+optim:
+  max_steps: 600

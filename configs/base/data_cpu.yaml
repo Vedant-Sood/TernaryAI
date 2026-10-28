@@ -1,0 +1,11 @@
+data:
+  tokenizer: {type: bpe, path: data/tokenizer/triforge-bpe-4k.json, vocab_size: 4096}
+  template: triforge
+  val_frac: 0.03
+  test_frac: 0.0
+  synthetic_test: 500
+  near_dedup: true
+  decontaminate: {enabled: true, ngram: 13, benchmarks: [humaneval, mbpp, gsm8k]}
+eval:
+  interval: 250
+  val_iters: 20

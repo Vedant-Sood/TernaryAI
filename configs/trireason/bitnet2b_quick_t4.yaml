@@ -1,0 +1,9 @@
+# trireason: quick pipeline check (~30 min of training) on a free cloud T4 (Kaggle or Colab), resumable across sessions.
+# Same data, model and schedule as bitnet2b_quick_rtx4060.yaml; only the runtime differs (fp16 + fp32
+# trainable weights, see ../base/runtime_t4.yaml). Run it through scripts/cloud_session.py.
+inherit:
+- bitnet2b_quick_rtx4060.yaml
+- ../base/runtime_t4.yaml
+run:
+  name: trireason-2b-quick-t4
+  output_dir: checkpoints/trireason/bitnet2b_quick_t4

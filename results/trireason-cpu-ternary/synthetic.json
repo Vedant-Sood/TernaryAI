@@ -1,0 +1,49 @@
+{
+  "exact_match": {
+    "metric": "exact_match",
+    "accuracy": 0.12301587301587301,
+    "n": 252,
+    "correct": 31,
+    "seconds": 24.630780458450317
+  },
+  "by_task": {
+    "reason/circuits": {
+      "accuracy": 0.125,
+      "n": 8
+    },
+    "reason/energy": {
+      "accuracy": 0.0,
+      "n": 47
+    },
+    "reason/kinematics": {
+      "accuracy": 0.0,
+      "n": 31
+    },
+    "reason/logic": {
+      "accuracy": 0.5,
+      "n": 2
+    },
+    "reason/momentum": {
+      "accuracy": 0.030303030303030304,
+      "n": 33
+    },
+    "reason/syllogism": {
+      "accuracy": 1.0,
+      "n": 7
+    },
+    "reason/units": {
+      "accuracy": 0.5909090909090909,
+      "n": 22
+    },
+    "reason/waves": {
+      "accuracy": 0.16,
+      "n": 50
+    },
+    "reason/work_power": {
+      "accuracy": 0.0,
+      "n": 52
+    }
+  },
+  "limit": null,
+  "seconds": 24.6
+}
