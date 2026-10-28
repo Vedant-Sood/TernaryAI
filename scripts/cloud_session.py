@@ -126,6 +126,18 @@ def run(cmd, log=print):
     return subprocess.call(cmd, cwd=ROOT)
 
 
+def launcher(gpus="auto"):
+    """python, or torchrun with one process per GPU when there is more than one (e.g. Kaggle's T4 x2)."""
+    if gpus == "auto":
+        import torch
+        n = torch.cuda.device_count()
+    else:
+        n = int(gpus)
+    if n <= 1:
+        return [sys.executable]
+    return [sys.executable, "-m", "torch.distributed.run", "--standalone", f"--nproc_per_node={n}"]
+
+
 def train_with_sync(cmd, out_dir, sync_run, poll_s=60, log=print):
     """Run the trainer; while it runs, copy each new checkpoint to sync_run."""
     log("[session] $ " + " ".join(cmd))
@@ -155,6 +167,8 @@ def main():
     p.add_argument("--save-margin-min", type=float, default=20,
                    help="time kept free for the final evaluation, the checkpoint and the output upload")
     p.add_argument("--export-when-done", action="store_true")
+    p.add_argument("--gpus", default="auto",
+                   help="number of GPUs for data-parallel training (torchrun); 'auto' uses all visible GPUs")
     p.add_argument("--set", nargs="*", default=[], help="extra dotted overrides passed to train.py")
     args = p.parse_args()
 
@@ -187,7 +201,7 @@ def main():
             print(f"[session] only {left:.0f} min left in this session: not starting training")
             sys.exit(0)
         print(f"[session] training for at most {cap:.0f} min")
-        rc = train_with_sync([sys.executable, "scripts/train.py", "--config", cfg_path, "--resume", "auto",
+        rc = train_with_sync([*launcher(args.gpus), "scripts/train.py", "--config", cfg_path, "--resume", "auto",
                               "--set", f"runtime.max_train_minutes={cap:.1f}", *args.set], out_dir, sync_run)
         if rc != 0:
             sys.exit(rc)

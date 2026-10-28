@@ -98,6 +98,8 @@ triforge chat -m auto
   and `state.json` (step, tokens seen, data-sampler state, SHA-256 of the model file).
 * Writes are atomic (temp dir + rename; `latest` pointer updated last), so a crash mid-save keeps
   the previous checkpoint usable. `keep_last` controls retention.
+* Several GPUs: `torchrun --standalone --nproc_per_node=N scripts/train.py ...` (data parallel; gradients
+  averaged, accumulation split across GPUs, rank 0 saves). Checkpoints are interchangeable with single-GPU runs.
 * `--resume auto` continues from `latest`; the resumed run reproduces the uninterrupted run's losses
   exactly (`test_resume_reproduces_uninterrupted_run`).
 * Ctrl-C saves a checkpoint before exiting (exit code 130). A CUDA OOM saves one if possible and

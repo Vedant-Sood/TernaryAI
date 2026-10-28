@@ -26,8 +26,12 @@ the runtime (`configs/base/runtime_t4.yaml`):
   embedding are unchanged.
 * The ReLU² GLU is computed in fp32 when its input is fp16 (`ReLU(g)² · up` can exceed 65504).
 * `keep_last: 1` and a checkpoint every 50 steps. One checkpoint is roughly 4–5 GB (estimate).
-* One GPU only (no multi-GPU training). A T4 is roughly as fast as the laptop's RTX 4060, so the cloud
-  adds GPU hours rather than speed.
+* **All visible GPUs are used** (data parallel via `torchrun`, one process per GPU): on Kaggle's
+  **T4 x2** each step's accumulation is split over both GPUs, so the effective batch is unchanged and a
+  run should take roughly half as long (expected ~1.7–1.9×, not measured yet). Each GPU holds a full copy
+  of the model, so memory per GPU is the same as on one. One T4 is roughly as fast as the laptop's
+  RTX 4060. `scripts/cloud_session.py --gpus 1` forces a single GPU.
+* A run can switch between one and two GPUs between sessions: checkpoints are the same either way.
 
 Output directories end in `_t4`, so laptop and cloud runs never mix.
 

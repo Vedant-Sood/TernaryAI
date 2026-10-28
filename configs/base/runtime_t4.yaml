@@ -1,7 +1,8 @@
 # NVIDIA T4 (16 GB, compute 7.5), as on free Kaggle and Colab notebooks. Layered on top of an RTX 4060 preset.
 # The T4 has no native bf16, so training uses fp16 autocast with loss scaling and keeps the
 # trainable latent weights in fp32 (~2.2 GB more than bf16 for the last 8 blocks; the frozen
-# packed blocks and the embedding are unchanged). Only one GPU is used.
+# packed blocks and the embedding are unchanged). With several GPUs, scripts/cloud_session.py
+# runs one process per GPU (data parallel) and splits the accumulation steps between them.
 # Sessions are time-limited: scripts/cloud_session.py sets runtime.max_train_minutes from the time
 # left, and a single kept checkpoint fits Kaggle's 20 GB output and a 15 GB Google Drive.
 runtime:

@@ -8,10 +8,16 @@ gradient accumulation, gradient checkpointing, sequence-length
 schedule, cosine or WSD learning rate, progressive ternarization, optional distillation teacher,
 atomic resumable checkpoints (model + optimizer + RNG + data sampler), JSONL metrics, and an
 out-of-memory handler that writes a diagnostic report instead of dying silently.
+
+Data parallel over several GPUs when launched with torchrun (WORLD_SIZE > 1): every rank holds the
+model, draws its own batches, and gradients are averaged before each optimizer step. The
+accumulation steps are split across ranks, so the effective batch is unchanged. Rank 0 logs and
+saves; all ranks evaluate (cheap, and keeps them in lockstep).
 """
 
 from __future__ import annotations
 
+import datetime
 import json
 import math
 import os
@@ -19,6 +25,7 @@ import sys
 import time
 
 import torch
+import torch.distributed as dist
 import yaml
 
 from ..datasets.loader import TokenDataset
@@ -70,15 +77,32 @@ def native_bf16(device) -> bool:
     return torch.cuda.get_device_capability(device)[0] >= 8
 
 
+def init_distributed(device):
+    """Join the torchrun process group if there is one. Returns (rank, world_size, device)."""
+    world = int(os.environ.get("WORLD_SIZE", "1"))
+    if world <= 1:
+        return 0, 1, device
+    rank, local = int(os.environ["RANK"]), int(os.environ.get("LOCAL_RANK", "0"))
+    if device.type == "cuda":
+        torch.cuda.set_device(local)
+        device = torch.device("cuda", local)
+    if not dist.is_initialized():
+        # checkpoint saves on rank 0 can take minutes; the other ranks wait in a collective
+        dist.init_process_group("nccl" if device.type == "cuda" else "gloo", timeout=datetime.timedelta(hours=1))
+    return rank, world, device
+
+
 class Trainer:
     def __init__(self, cfg: dict, log=print):
-        self.cfg, self.log = cfg, log
+        self.cfg = cfg
         run, rcfg = cfg["run"], cfg["runtime"]
         self.out = resolve_path(run["output_dir"])
         os.makedirs(self.out, exist_ok=True)
         dev = rcfg.get("device", "auto")
         self.device = torch.device("cuda" if dev == "auto" and torch.cuda.is_available() else
                                    ("cpu" if dev == "auto" else dev))
+        self.rank, self.world, self.device = init_distributed(self.device)
+        self.log = log if self.rank == 0 else (lambda *a, **k: None)
         if rcfg.get("threads"):
             torch.set_num_threads(rcfg["threads"])
         torch.manual_seed(run.get("seed", 1337))
@@ -106,7 +130,7 @@ class Trainer:
         if self.teacher is None and rcfg.get("loss_chunk") and hasattr(self.model, "loss_chunk"):
             self.model.loss_chunk = rcfg["loss_chunk"]
         data_dir = resolve_path(cfg["data"]["dir"])
-        self.train_ds = TokenDataset(data_dir, "train", seed=run.get("seed", 1337))
+        self.train_ds = TokenDataset(data_dir, "train", seed=run.get("seed", 1337) + 1000 * self.rank)
         self.val_ds = TokenDataset(data_dir, "val", seed=0)
         self.opt = build_optimizer(self.model, cfg["optim"])
         self.step, self.tokens_seen = 0, 0
@@ -119,6 +143,8 @@ class Trainer:
         return torch.autocast(self.device.type, dtype=self.amp_dtype)
 
     def _write(self, rec):
+        if self.rank != 0:
+            return
         with open(self.metrics_path, "a") as f:
             f.write(json.dumps(rec) + "\n")
 
@@ -153,12 +179,21 @@ class Trainer:
         return {"val_loss": v, "val_ppl": math.exp(min(v, 50))}
 
     def save(self, extra=None):
+        """Collective when distributed: every rank must call it; rank 0 writes."""
         st = {"tokens_seen": self.tokens_seen, "data_state": self.train_ds.state().tolist(), **(extra or {})}
+        if self.world > 1:
+            ranks = [None] * self.world
+            dist.all_gather_object(ranks, st["data_state"])
+            st["data_state_ranks"] = ranks
         if self.scaler is not None:
             st["grad_scaler"] = self.scaler.state_dict()
-        p = save_checkpoint(self.out, self.step, self.model, self.opt, {"step": self.step}, st,
-                            keep_last=self.cfg["runtime"].get("keep_last", 3))
-        self.log(f"[ckpt] saved {p}")
+        p = None
+        if self.rank == 0:
+            p = save_checkpoint(self.out, self.step, self.model, self.opt, {"step": self.step}, st,
+                                keep_last=self.cfg["runtime"].get("keep_last", 3))
+            self.log(f"[ckpt] saved {p}")
+        if self.world > 1:
+            dist.barrier()
         return p
 
     def resume(self, spec):
@@ -168,23 +203,56 @@ class Trainer:
             return
         st = load_checkpoint(path, self.model, self.opt, map_location=self.device)
         self.step, self.tokens_seen = st["step"], st.get("tokens_seen", 0)
-        if "data_state" in st:
+        ranks = st.get("data_state_ranks")
+        if ranks and len(ranks) == self.world:
+            self.train_ds.set_state(torch.tensor(ranks[self.rank], dtype=torch.uint8))
+        elif "data_state" in st and self.rank == 0:  # other ranks keep their fresh seeds
             self.train_ds.set_state(torch.tensor(st["data_state"], dtype=torch.uint8))
         if self.scaler is not None and "grad_scaler" in st:
             self.scaler.load_state_dict(st["grad_scaler"])
         self.log(f"[resume] from {path} at step {self.step}")
 
+    # ------------------------------------------------------------------ distributed helpers
+    def _trainable(self):
+        return [p for p in self.model.parameters() if p.requires_grad]
+
+    @torch.no_grad()
+    def _sync_params(self):
+        for p in self._trainable():
+            dist.broadcast(p.data, src=0)
+
+    @torch.no_grad()
+    def _average_grads(self):
+        for p in self._trainable():
+            if p.grad is None:
+                p.grad = torch.zeros_like(p)
+            dist.all_reduce(p.grad)
+            p.grad.div_(self.world)
+
+    def _all_mean(self, x: float) -> float:
+        t = torch.tensor([x], dtype=torch.float64, device=self.device)
+        dist.all_reduce(t)
+        return t.item() / self.world
+
+    def _rank0_flag(self, flag: bool) -> bool:
+        t = torch.tensor([int(flag)], device=self.device)
+        dist.broadcast(t, src=0)
+        return bool(t.item())
+
     # ------------------------------------------------------------------ main loop
     def fit(self):
         cfg, ocfg, rcfg, ecfg = self.cfg, self.cfg["optim"], self.cfg["runtime"], self.cfg.get("eval", {})
-        with open(os.path.join(self.out, "config.yaml"), "w") as f:
-            yaml.safe_dump(cfg, f, sort_keys=False)
-        save_arch(self.model, self.out)
+        if self.rank == 0:
+            with open(os.path.join(self.out, "config.yaml"), "w") as f:
+                yaml.safe_dump(cfg, f, sort_keys=False)
+            save_arch(self.model, self.out)
+        if self.world > 1:
+            self._sync_params()
         summary = {**trainable_summary(self.model), **ternary_report(self.model),
-                   "device": str(self.device), "amp": str(self.amp_dtype)}
+                   "device": str(self.device), "amp": str(self.amp_dtype), "world_size": self.world}
         self.log(f"[model] {json.dumps(summary)}")
         self._write({"event": "start", "step": self.step, **summary})
-        accum = rcfg.get("grad_accum_steps", 1)
+        accum = math.ceil(rcfg.get("grad_accum_steps", 1) / self.world)  # per rank
         mb = rcfg["micro_batch_size"]
         ptern = ocfg.get("progressive_ternarization_steps", 0)
         # Fraction of ternary codes that changed since the start of this run: shows how much QAT
@@ -198,7 +266,10 @@ class Trainer:
         max_min = rcfg.get("max_train_minutes")
         stopped_on_time = False
         while self.step < ocfg["max_steps"]:
-            if max_min is not None and time.time() - t_start >= 60 * max_min:
+            out_of_time = max_min is not None and time.time() - t_start >= 60 * max_min
+            if self.world > 1:  # rank 0's clock decides, so all ranks stop at the same step
+                out_of_time = self._rank0_flag(out_of_time)
+            if out_of_time:
                 stopped_on_time = True
                 self.log(f"[train] time cap of {max_min} min reached at step {self.step}")
                 break
@@ -221,11 +292,13 @@ class Trainer:
                 loss = self._loss(x, y, m) / accum
                 (loss if self.scaler is None else self.scaler.scale(loss)).backward()
                 loss_acc += loss.item()
-                self.tokens_seen += x.numel()
+                self.tokens_seen += x.numel() * self.world
+            if self.world > 1:  # before unscaling, so an overflow on any rank skips the step everywhere
+                self._average_grads()
+                loss_acc = self._all_mean(loss_acc)
             if self.scaler is not None:
                 self.scaler.unscale_(self.opt)
-            gn = torch.nn.utils.clip_grad_norm_([p for p in self.model.parameters() if p.requires_grad],
-                                                ocfg.get("grad_clip", 1.0))
+            gn = torch.nn.utils.clip_grad_norm_(self._trainable(), ocfg.get("grad_clip", 1.0))
             if self.scaler is None:
                 self.opt.step()
             else:  # skips the update when the scaled gradients overflowed, then adjusts the scale
