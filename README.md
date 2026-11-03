@@ -1,117 +1,140 @@
 # TernaryAI / TriForge
 
-**TriForge** is a framework for language models whose transformer weights are **ternary**: every
-weight is −1, 0 or +1, with one scale per matrix, and matmul inputs are 8-bit (W1.58A8, following
-[BitNet b1.58](https://arxiv.org/abs/2402.17764)). It has three specialist pipelines:
+A research framework for ternary-weight language models and three specialist
+pipelines: **TriCode**, **TriMath** and **TriReason**. It explores the storage,
+quality and runtime tradeoffs of weights restricted to -1, 0 and +1.
 
-| Specialist | Domain | 2B config | Small validated model |
-| --- | --- | --- | --- |
-| **TriCode** | programming, algorithms, debugging, tests | `configs/tricode/bitnet2b_*.yaml` | `configs/tricode/cpu_validation.yaml` |
-| **TriMath** | algebra, calculus, number theory, proofs, word problems | `configs/trimath/bitnet2b_*.yaml` | `configs/trimath/cpu_validation.yaml` |
-| **TriReason** | physics, engineering, logic, quantitative reasoning | `configs/trireason/bitnet2b_*.yaml` | `configs/trireason/cpu_validation.yaml` |
+**Status:** small CPU-scale models and experiments have recorded results.
+The 2B specialist configurations are provided, but **the 2B specialists have
+not been trained**. The [engineering report](docs/REPORT.md) separates measured
+results, estimates and work that has not run.
 
-> **Status (2026-10-26).** The framework, the 84-test suite and the three CPU-scale (3.4M-parameter)
-> validation models are done and measured, ternary vs dense. **The 2B specialists are not trained
-> yet.** Their configs, memory plans and pipeline are ready, and they need the RTX 4060 laptop and a
-> Hugging Face download. See [docs/REPORT.md](docs/REPORT.md) for what is trained and measured and what isn't.
+## What is here
 
-## How the 2B specialists are built
-
-| File | What it is |
+| Component | Scope |
 | --- | --- |
-| `ternary/bitlinear.py` | `BitLinear`, weight / activation quantizers |
-| `ternary/model.py` | LLaMA-style decoder (RMSNorm, RoPE, SwiGLU); `linear="ternary"` or `"fp"` |
-| `data.py` | Character-level TinyShakespeare (downloaded on first run) |
-| `train.py` | Training loop, writes `runs/<name>/{ckpt.pt,metrics.json,sample.txt}` |
-| `compare.py` | Val loss / perplexity, plus storage with weights packed at 2 bits and 1.58 bits; writes `runs/comparison.json` |
-| `tests/` | Quantizer and model sanity tests (`python -m pytest tests`) |
-| `runs/` | Metrics, samples and comparison from the runs below (checkpoints are not committed) |
-Training a 2B ternary model from scratch took Microsoft 4 trillion tokens, which a laptop can't do.
-TriForge therefore fine-tunes **[BitNet b1.58 2B4T](https://huggingface.co/microsoft/bitnet-b1.58-2B-4T-bf16)**
-(MIT), a model that is *natively* ternary, with quantization-aware training, so the forward weights
-stay ternary throughout. To fit 8 GB of VRAM, only the last 8 of 30 blocks keep bf16 latent weights.
-The other blocks are frozen as packed 2-bit codes. The estimate is 5.6 GiB
-([docs/TRAINING.md](docs/TRAINING.md)). Converting *dense* models to ternary is measured as a
-separate experiment (Phase B).
+| TriCode | Coding, algorithms, debugging and tests |
+| TriMath | Mathematics, proofs and word problems |
+| TriReason | Physics, engineering and quantitative reasoning |
+| Training framework | Ternary quantization, packed frozen layers, LoRA, distillation and resume |
+| Evaluation | Quality benchmarks, storage measurements and runtime comparisons |
+| Local inference | Specialist router, CLI and HTTP API for installed exports |
+| Phase 0 | Original character-level TinyShakespeare comparison |
 
-## Quick start
+The modern framework is in src/triforge. The root train.py, compare.py,
+data.py and ternary directory belong to the earlier Phase 0 experiment.
 
-```bash
-# WSL2 Ubuntu (recommended; Windows-native instructions in docs/INSTALL.md)
-git clone https://github.com/Vedant-Sood/TernaryAI.git && cd TernaryAI
-bash scripts/install_wsl.sh && source .venv/bin/activate
-python scripts/check_env.py                    # GPU / CUDA / packages; flags the Anaconda OMP #15 clash
-python -m pytest -q                            # 84 tests
+## Install
 
-# Phase A on CPU, ~1.5 h: data -> train ternary and fp twins -> export -> evaluate
+The existing [installation guide](docs/INSTALL.md) covers WSL2, native Windows,
+CUDA dependencies and the OpenMP conflict. From Ubuntu/WSL2:
+
+~~~bash
+git clone https://github.com/Vedant-Sood/TernaryAI.git
+cd TernaryAI
+bash scripts/install_wsl.sh
+source .venv/bin/activate
+python scripts/check_env.py
+python -m pytest -q
+~~~
+
+The install and data-preparation steps can download large dependencies or models.
+The report records 84 tests from the earlier validation; this README does not
+claim a new run.
+
+## Reproduce the small experiments
+
+~~~bash
 bash scripts/run_cpu_validation.sh
 bash scripts/eval_cpu_validation.sh
+~~~
 
-# 2B specialist on the RTX 4060 (TriMath shown; same for tricode / trireason)
-hf auth login
+The first script prepares data, trains ternary/dense twins and exports them.
+The second evaluates the exports and invokes benchmark datasets. These are
+training and evaluation jobs, not instant demos; initial preparation and
+benchmark downloads require internet access.
+
+### Recorded CPU-scale results
+
+From [docs/REPORT.md](docs/REPORT.md), dated 26 October 2026; single-seed results:
+
+| Specialist | Ternary validation loss | Dense validation loss |
+| --- | --- | --- |
+| TriMath | 0.328 | 0.313 |
+| TriReason | 0.357 | 0.276 |
+| TriCode | 3.22 | 3.11 |
+
+The specialist models have about 3.35M parameters; their recorded export sizes
+were 3.61 MB versus 6.69 MB for fp16. These are different from the original
+3.25M-parameter TinyShakespeare experiment. Small synthetic-domain results do
+not establish the quality of a trained 2B specialist.
+
+## 2B specialist workflow
+
+The configs fine-tune the natively ternary BitNet b1.58 2B4T base model rather
+than training a 2B model from scratch. The laptop presets freeze and pack most
+blocks while retaining trainable latent weights in selected blocks.
+Memory figures are plans or estimates until the selected hardware is profiled.
+
+TriMath example, after installation and any required Hugging Face authentication:
+
+~~~bash
 python scripts/profile_hardware.py --config configs/trimath/bitnet2b_partial_rtx4060.yaml
-python scripts/prepare_data.py   --config configs/trimath/bitnet2b_partial_rtx4060.yaml
-python scripts/train.py          --config configs/trimath/bitnet2b_partial_rtx4060.yaml --resume auto
+python scripts/prepare_data.py --config configs/trimath/bitnet2b_partial_rtx4060.yaml
+python scripts/train.py --config configs/trimath/bitnet2b_partial_rtx4060.yaml --resume auto
 python scripts/export.py --run checkpoints/trimath/bitnet2b_partial --out checkpoints/exports/trimath-2b
 python scripts/evaluate.py --export checkpoints/exports/trimath-2b --specialist trimath --data data/trimath/v1-bitnet
+~~~
 
-`compare.py` loads each run's `ckpt.pt`, which is git-ignored, so train both runs before comparing.
+Use the corresponding tricode or trireason configs for the other specialists.
+Read [training](docs/TRAINING.md) and [cloud GPU options](docs/CLOUD_GPU.md)
+before choosing a larger preset. A configuration file is not a trained checkpoint.
 
-Defaults are CPU-sized (4 layers, d=256, context 128, 2000 steps of batch 32).
-On a GPU, try `--n_layer 6 --n_head 6 --n_embd 384 --block_size 256 --max_iters 5000`.
+## Local inference
 
-## First results (CPU, 2 threads per run)
-# local inference (CLI and HTTP API), offline once exports are installed
+Run from the repository root after installing or creating compatible exports
+and configuring configs/models.yaml:
+
+~~~bash
+triforge models
 triforge chat -m auto
 triforge serve --port 8765
-```
+~~~
 
-## Documentation
+The API requires the serve extra. See [inference setup](docs/INFERENCE.md)
+for registry paths, export formats and supported backends. Neither chat nor
+serve creates missing weights.
 
-| Doc | Contents |
+## Original TinyShakespeare experiment
+
+~~~bash
+python -m pip install -r requirements.txt
+python train.py --linear ternary
+python train.py --linear fp
+python compare.py
+~~~
+
+Train both runs before comparing: compare.py loads their ignored ckpt.pt files.
+The original 3.25M-parameter, 2,000-step comparison reported validation losses
+of 1.500 (ternary) and about 1.477 (dense), and roughly 7.3x smaller packed
+weight storage than fp16. These numbers describe that experiment only.
+
+## Documentation and layout
+
+Start at the [documentation index](docs/README.md).
+
+| Path | Purpose |
 | --- | --- |
-| [ARCHITECTURE](docs/ARCHITECTURE.md) | ternary weights, STE, what stays high precision, ternary vs INT4/INT8, packing, kernels, code map |
-| [INSTALL](docs/INSTALL.md) | Windows / WSL2 / CUDA setup, OMP Error #15, troubleshooting |
-| [TRAINING](docs/TRAINING.md) | strategy comparison and choice, 8 GB memory plan, presets, commands, resuming |
-| [CLOUD_GPU](docs/CLOUD_GPU.md) | training the 2B specialists on Modal, Colab or Kaggle GPUs, resumed across sessions |
-| [DATA](docs/DATA.md) | datasets, licences, dedup and decontamination, mixtures |
-| [EVALUATION](docs/EVALUATION.md) | benchmark protocols and efficiency metrics |
-| [INFERENCE](docs/INFERENCE.md) | CLI, local API, router |
-| [HUGGINGFACE](docs/HUGGINGFACE.md) | base-model selection, auth, private repos, upload / download |
-| [RESEARCH](docs/RESEARCH.md) | measured findings: ternary vs fp, conversion, sparsity, speed, limits |
-| [REPORT](docs/REPORT.md) | engineering report: done, trained, measured, remaining |
-| [Model cards](docs/model_cards/) | TriCode, TriMath, TriReason |
+| [src/triforge/](src/triforge/) | Current model, quantization, training, data, inference and evaluation code |
+| [configs/](configs/) | Specialist, hardware and conversion presets |
+| [scripts/](scripts/) | Environment checks, data preparation, train/export/evaluate and publishing tools |
+| [tests/](tests/) | Framework checks |
+| [results/](results/) | Committed experiment summaries and measurements |
+| [docs/](docs/) | Methods, installation, training, reports and model cards |
+| [ternary/](ternary/) | Earlier Phase 0 implementation |
 
-| Run | Params | Val loss | Val ppl (per char) | Train time | Weight storage |
-| --- | --- | --- | --- | --- | --- |
-| ternary | 3.25M | 1.500 | 4.48 | 44 min | **867 KB** (2-bit packed) / 710 KB at 1.58 bits |
-| fp | 3.25M | 1.476 | 4.38 | 32 min | 6,342 KB (fp16) |
-## Repository layout
-
-```
-configs/{base,tricode,trimath,trireason,phase_b}/   YAML presets (inherit + override)
-src/triforge/   quantization · architectures · training · distillation · datasets · evaluation ·
-                inference · huggingface · hardware
-scripts/        check_env, check_hf_auth, profile_hardware, prepare_data, init_model, validate_ternary,
-                convert_pretrained, train, export, evaluate, benchmark, infer, serve, upload_hf, download_hf
-tests/          84 tests (quantization, model, HF compatibility, data, training/resume, export, API, eval)
-docs/  results/  checkpoints/ (git-ignored)  data/ (git-ignored)
-ternary/ train.py compare.py data.py runs/   phase-0 TinyShakespeare experiment (kept as is)
-```
-
-- **Quality:** ternary is within ~1.6% of the full-precision loss at this tiny scale,
-  and the gap was still shrinking at the end of training (it was 0.056 at step 1500, 0.024 at 2000).
-- **Memory:** ternary weights are **~7.3× smaller** than fp16 (~9× at the 1.58-bit bound). Of the 867 KB, ~784 KB is the
-  packed ternary weights and ~83 KB is the fp16 embedding, head and norms (~1.3% of parameters).
-- **Sparsity:** ~33% of the ternary weights are exactly 0, so they can be skipped entirely by a custom kernel.
-- **Generalization:** ternary had a smaller train/val gap (0.27 vs 0.35), consistent with quantization acting as a regularizer.
-- **Speed (the catch):** training is *slower*, because the latent fp weights are kept and the quantizers
-  add work, and here inference is also not faster because PyTorch still does fp matmuls on the
-  de-quantized values. The speed and energy win of ternary only appears with kernels that replace
-  multiplies with additions (e.g. [bitnet.cpp](https://github.com/microsoft/BitNet)) or with custom hardware.
-## Phase 0 (kept): TinyShakespeare, ternary vs fp
-
-The first experiment (PR #1) still runs unchanged: `pip install -r requirements.txt`, then `python train.py --linear ternary`,
-`python train.py --linear fp` and `python compare.py`. With 3.25M parameters, char-level, 2000 steps on CPU:
-ternary reached val loss 1.500 and fp 1.477. Ternary weights were 7.3× smaller (2-bit packed), 33% of the
-ternary weights were zero, and ternary trained ~35% slower in PyTorch.
+Packed storage savings do not automatically produce faster PyTorch execution.
+The recorded reference path was slower than dense. GPU throughput, large-model
+quality and specialized-kernel benefits must be measured separately.
+Project code uses the [MIT license](LICENSE); datasets and base models retain
+their own terms.
