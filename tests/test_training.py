@@ -217,3 +217,30 @@ def test_two_process_data_parallel_stays_in_sync_and_resumes_exactly(tmp_path):
     _torchrun(tmp_path, _cfg(tmp_path, 6, "ddp_split"), resume=True)
     assert np.allclose(_losses(out / "metrics.jsonl"), _losses(tmp_path / "ddp_split" / "metrics.jsonl"), atol=1e-5)
     assert (out / "params_rank0.txt").read_text() == (tmp_path / "ddp_split" / "params_rank0.txt").read_text()
+
+
+def test_checkpoint_resume_state_loads_without_unpickling(tmp_path, monkeypatch):
+    import random
+
+    monkeypatch.delenv("TRIFORGE_TRUST_CHECKPOINTS", raising=False)
+    m = TriForgeLM(TriForgeConfig(vocab_size=50, max_seq_len=16, d_model=32, n_layers=1, n_heads=2))
+    opt = torch.optim.AdamW(m.parameters(), lr=1e-3)
+    m(torch.randint(0, 50, (1, 8)))[0].float().sum().backward()
+    opt.step()
+    p = save_checkpoint(str(tmp_path), 1, m, optimizer=opt)
+    want = (random.random(), np.random.rand(), torch.rand(1).item())
+    random.random(), np.random.rand(), torch.rand(1)  # advance every RNG
+    load_checkpoint(p, m, optimizer=torch.optim.AdamW(m.parameters(), lr=1e-3))
+    assert (random.random(), np.random.rand(), torch.rand(1).item()) == want
+
+    class Evil:
+        def __reduce__(self):
+            return (os.system, ("true",))
+
+    torch.save({"state": {}, "param_groups": [], "x": Evil()}, os.path.join(p, "optim.pt"))
+    with pytest.raises(RuntimeError, match="cannot be loaded safely"):
+        load_checkpoint(p, m, optimizer=torch.optim.AdamW(m.parameters(), lr=1e-3))
+    torch.save({"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state()},
+               os.path.join(p, "rng.pt"))  # pre-fix layout with a pickled numpy array
+    with pytest.warns(UserWarning, match="not restoring RNG state"):
+        load_checkpoint(p, m)

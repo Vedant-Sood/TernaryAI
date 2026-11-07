@@ -92,6 +92,9 @@ def main(argv=None):
     s = sub.add_parser("serve")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--allowed-host", action="append", default=None,
+                   help="Host header value to accept (repeatable). Default: loopback names only, or any "
+                        "host when --host is not a loopback address")
     args = p.parse_args(argv)
 
     if args.cmd == "route":
@@ -112,8 +115,13 @@ def main(argv=None):
         cmd_chat(args)
     elif args.cmd == "serve":
         import uvicorn
-        from .api import create_app
-        uvicorn.run(create_app(_engine(args)), host=args.host, port=args.port)
+        from .api import LOOPBACK_HOSTS, create_app
+        loopback = args.host in LOOPBACK_HOSTS
+        if not loopback:
+            print(f"WARNING: serving on {args.host} with NO authentication: anyone who can reach this port "
+                  f"can run generation and load/unload models.", file=sys.stderr)
+        hosts = args.allowed_host or (LOOPBACK_HOSTS if loopback else ["*"])
+        uvicorn.run(create_app(_engine(args), allowed_hosts=hosts), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

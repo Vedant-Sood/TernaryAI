@@ -73,8 +73,10 @@ def test_engine_and_api(tmp_path):
     (tmp_path / "models.yaml").write_text(f"models:\n  tricode: {{specialist: tricode, path: {tmp_path / 'exp'}}}\n"
                                           f"  trimath: {{specialist: trimath, path: {tmp_path / 'missing'}}}\n")
     eng = Engine(str(tmp_path / "models.yaml"), device="cpu")
-    client = TestClient(create_app(eng))
+    assert TestClient(create_app(eng)).get("/health").status_code == 400  # Host "testserver" is not loopback
+    client = TestClient(create_app(eng), base_url="http://127.0.0.1")
     assert client.get("/health").json()["ok"]
+    assert client.post("/generate", json={"prompt": "x", "top_k": -1}).status_code == 422
     av = client.get("/models").json()
     assert av["tricode"]["installed"] and not av["trimath"]["installed"]
     r = client.post("/generate", json={"prompt": "write a python function", "max_new_tokens": 5, "temperature": 0})
@@ -116,3 +118,18 @@ def test_model_card_renders_only_measured_results(tmp_path):
     assert md.startswith("---\nlicense: mit") and "| trimath-x | gsm8k (exact_match) | 10.0% | 100 | trained |" in md
     assert "not executed" in md and "status text" in md
     assert "_No evaluation results yet._" in render("tricode", "s", [])
+
+
+def test_code_exec_kills_background_children(tmp_path):
+    import os
+    import time
+    if os.name != "posix":
+        pytest.skip("process groups are POSIX-only")
+    flag = tmp_path / "survived"
+    child = f"import time; time.sleep(2); open({str(flag)!r}, 'w')"
+    code = ("import subprocess, sys\n"
+            f"subprocess.Popen([sys.executable, '-c', {child!r}], stdout=subprocess.DEVNULL, "
+            "stderr=subprocess.DEVNULL)\n")
+    assert run_code(code)["passed"]
+    time.sleep(3)
+    assert not flag.exists()
