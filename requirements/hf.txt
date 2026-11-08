@@ -1,4 +1,4 @@
-transformers>=4.52     # native BitNet support (BitNetForCausalLM) landed in 4.52
+transformers>=4.53     # native BitNet support landed in 4.52; 4.53 fixes CVE-2025-5197, -6051, -6638, -6921 (ReDoS)
 datasets>=2.19
 accelerate>=0.30
 huggingface_hub>=0.23

@@ -55,7 +55,7 @@ def main(run_dirs):
     for d in run_dirs:
         with open(os.path.join(d, "metrics.json")) as f:
             m = json.load(f)
-        ckpt = torch.load(os.path.join(d, "ckpt.pt"), map_location="cpu")
+        ckpt = torch.load(os.path.join(d, "ckpt.pt"), map_location="cpu", weights_only=True)
         model = GPT(ModelConfig(**ckpt["cfg"]))
         model.load_state_dict(ckpt["model"])
         fp = footprint(model)

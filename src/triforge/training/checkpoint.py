@@ -10,6 +10,11 @@ Each checkpoint is written to a temporary directory and renamed only when comple
 interrupted save (power loss, Ctrl-C, OOM) never corrupts the newest usable checkpoint.
 state.json records step, tokens seen, RNG states, data-sampler state and a SHA-256 of the
 model file so integrity can be verified on load.
+
+optim.pt and rng.pt are torch pickles. They are loaded with `weights_only=True`, which refuses
+arbitrary Python objects, so a checkpoint copied from a shared Kaggle input, Drive folder or Hub
+repo cannot run code when it is resumed. Set TRIFORGE_TRUST_CHECKPOINTS=1 only to resume an old
+checkpoint you created yourself whose optimizer state needs a full unpickle.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ import os
 import random
 import shutil
 import time
+import warnings
 
 import numpy as np
 import torch
@@ -34,16 +40,33 @@ def _sha256(path, chunk=1 << 20):
     return h.hexdigest()
 
 
+def _trust_pickles() -> bool:
+    return os.environ.get("TRIFORGE_TRUST_CHECKPOINTS", "").lower() in ("1", "true", "yes")
+
+
+def _safe_torch_load(path, map_location=None):
+    """torch.load restricted to tensors and plain containers (no arbitrary code on load)."""
+    return torch.load(path, map_location=map_location, weights_only=not _trust_pickles())
+
+
 def rng_state() -> dict:
-    st = {"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state()}
+    name, keys, pos, has_gauss, cached = np.random.get_state()
+    # numpy's state as plain types + a tensor, so rng.pt loads with weights_only=True
+    st = {"python": random.getstate(),
+          "numpy": (name, torch.from_numpy(keys.astype(np.int64)), int(pos), int(has_gauss), float(cached)),
+          "torch": torch.get_rng_state()}
     if torch.cuda.is_available():
         st["cuda"] = torch.cuda.get_rng_state_all()
     return st
 
 
 def set_rng_state(st: dict):
-    random.setstate(st["python"])
-    np.random.set_state(st["numpy"])
+    py = st["python"]
+    random.setstate((py[0], tuple(py[1]), py[2]))
+    name, keys, pos, has_gauss, cached = st["numpy"]
+    if isinstance(keys, torch.Tensor):
+        keys = keys.numpy().astype(np.uint32)
+    np.random.set_state((name, keys, pos, has_gauss, cached))
     torch.set_rng_state(st["torch"])
     if "cuda" in st and torch.cuda.is_available():
         torch.cuda.set_rng_state_all(st["cuda"])
@@ -115,9 +138,18 @@ def load_checkpoint(path, model, optimizer=None, map_location="cpu", verify=True
     if strict and (real_missing or unexpected):
         raise RuntimeError(f"checkpoint mismatch: missing={real_missing[:5]} unexpected={unexpected[:5]}")
     if optimizer is not None and os.path.exists(os.path.join(path, "optim.pt")):
-        optimizer.load_state_dict(torch.load(os.path.join(path, "optim.pt"), map_location=map_location,
-                                             weights_only=False))
+        try:
+            optim_state = _safe_torch_load(os.path.join(path, "optim.pt"), map_location=map_location)
+        except Exception as e:
+            raise RuntimeError(f"{path}/optim.pt contains objects that cannot be loaded safely ({e}). If you "
+                               f"created this checkpoint yourself, set TRIFORGE_TRUST_CHECKPOINTS=1 to "
+                               f"load it anyway.") from e
+        optimizer.load_state_dict(optim_state)
     rng_path = os.path.join(path, "rng.pt")
     if os.path.exists(rng_path):
-        set_rng_state(torch.load(rng_path, weights_only=False))
+        try:
+            set_rng_state(_safe_torch_load(rng_path))
+        except Exception as e:  # older checkpoints pickled numpy arrays; RNG state only affects reproducibility
+            warnings.warn(f"not restoring RNG state from {rng_path}: {e}. Set TRIFORGE_TRUST_CHECKPOINTS=1 "
+                          f"to load it from a checkpoint you trust.")
     return state
